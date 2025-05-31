@@ -8,18 +8,16 @@ import numpy as np
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
-st.markdown(
-    """
+st.markdown("""
 Upload your FM24 exported **squad** and **transfer market** HTML files to analyze your squad and transfer targets.  
 Ask AI questions, get detailed player stats with radar charts, and search transfer market players easily!
-"""
-)
+""")
 
-# --- OpenAI API Key ---
-api_key = st.secrets["API_KEY"]
-client = openai.OpenAI(api_key=api_key)
+# --- OpenAI API Key (replace or set in secrets) ---
+api_key = st.secrets.get("API_KEY", "")
+client = openai.OpenAI(api_key=api_key) if api_key else None
 
-# --- Position Normalization with FM24 roles & positions ---
+# --- Position Normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
     "D (C)": "Centre Back",
@@ -34,8 +32,8 @@ position_aliases = {
     "AM (C)": "Attacking Midfielder",
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",       # Inside Forward Left
-    "AM (R)": "Inside Forward",       # Inside Forward Right
+    "AM (L)": "Inside Forward",    # First alias for Inside Forward
+    "AM (R)": "Inside Forward",    # Second alias for Inside Forward
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -54,7 +52,7 @@ def normalize_position(pos_str):
                 return position_aliases[alias_key]
     return "Unknown"
 
-# --- Position-based metrics for radar charts ---
+# --- Position-based metrics ---
 position_metrics = {
     "Goalkeeper": [
         "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
@@ -118,52 +116,61 @@ position_metrics = {
     ]
 }
 
-# --- Parse HTML file to DataFrame ---
+# --- Parse HTML ---
 def parse_html_to_df(html_str):
     try:
-        soup = BeautifulSoup(html_str, 'html.parser')
+        soup = BeautifulSoup(html_str, "html.parser")
         table = soup.find("table")
         if not table:
-            st.error("No table found in the uploaded HTML file.")
+            st.error("No table found in HTML.")
             return None
 
-        headers = [th.get_text(strip=True) for th in table.find_all("th")]
+        # Extract headers from thead
+        headers = []
+        thead = table.find("thead")
+        if thead:
+            headers = [th.get_text(strip=True) for th in thead.find_all("th")]
+
+        # Extract rows from tbody
+        tbody = table.find("tbody")
+        if not tbody:
+            st.error("No tbody found in table.")
+            return None
 
         rows = []
-        for tr in table.find_all("tr"):
-            cells = tr.find_all("td")
-            if not cells:
-                continue
-            row = [td.get_text(strip=True) for td in cells]
+        for tr in tbody.find_all("tr"):
+            row = []
+            for td in tr.find_all("td"):
+                text = td.get_text(separator=" ", strip=True)
+                row.append(text)
             if len(row) == len(headers):
                 rows.append(row)
 
         df = pd.DataFrame(rows, columns=headers)
 
-        # Convert numeric columns where possible
+        # Clean numeric columns (remove % and commas), convert where possible
         for col in df.columns:
-            # Remove commas and % signs before conversion
-            df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
+            df[col] = df[col].str.replace("%", "").str.replace(",", "")
+            df[col] = pd.to_numeric(df[col], errors="ignore")
 
         # Normalize positions
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
-        elif "Pos" in df.columns:
-            df["Normalized Position"] = df["Pos"].apply(normalize_position)
+        pos_cols = [c for c in df.columns if "pos" in c.lower()]
+        if pos_cols:
+            df["Normalized Position"] = df[pos_cols[0]].apply(normalize_position)
         else:
             df["Normalized Position"] = "Unknown"
 
         return df
     except Exception as e:
-        st.error(f"Error parsing HTML file: {e}")
+        st.error(f"Error parsing HTML: {e}")
         return None
 
-# --- Plot radar (pizza) chart for player ---
+# --- Radar Chart ---
 def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
     labels = metrics
     values = []
     for m in metrics:
-        val = player_data.get(m)
+        val = player_data.get(m, 0)
         if val is None or (isinstance(val, float) and np.isnan(val)):
             val = 0
         values.append(float(val))
@@ -172,42 +179,39 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(3.5, 3.5), subplot_kw=dict(polar=True))
     ax.fill(angles, values, color='orange', alpha=0.25)
     ax.plot(angles, values, color='orange', linewidth=2)
 
     ax.set_yticklabels([])
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=8)
-
-    ax.set_title(title, y=1.1, fontsize=12)
+    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_title(title, y=1.1, fontsize=11)
     plt.tight_layout()
     st.pyplot(fig)
 
-# --- Display player details and radar ---
+# --- Display Player Details and Radar ---
 def display_player_details(df, player_name):
     player_row = df[df["Name"] == player_name]
     if player_row.empty:
-        st.warning("Player not found in dataset.")
+        st.warning("Player not found.")
         return
     player_data = player_row.iloc[0].to_dict()
 
-    st.subheader(f"Player Details: {player_name} ({player_data.get('Nationality', '')}, {player_data.get('Position', '')})")
+    st.subheader(f"Player Details: {player_name} ({player_data.get('Nationality','')}, {player_data.get('Position','')})")
 
-    # Show player stats table excluding some big columns
-    details_to_show = {k: v for k, v in player_data.items() if k not in ['Normalized Position']}
+    # Show key player stats in JSON format (excluding normalized position)
+    details_to_show = {k:v for k,v in player_data.items() if k != "Normalized Position"}
     st.json(details_to_show)
 
-    # Radar chart by normalized position
+    # Radar chart
     position = player_data.get("Normalized Position", "Unknown")
     metrics = position_metrics.get(position, position_metrics["Unknown"])
+    valid_metrics = [m for m in metrics if m in player_data and player_data[m] not in [None, ""] and not (isinstance(player_data[m], float) and np.isnan(player_data[m]))]
 
-    # Filter metrics with data
-    valid_metrics = [m for m in metrics if m in player_data and not (player_data[m] is None or (isinstance(player_data[m], float) and np.isnan(player_data[m])))]
     if len(valid_metrics) < 3:
         st.warning("Not enough data for radar chart.")
         return
-
     plot_player_radar(player_data, valid_metrics, title=f"{player_name} - {position}")
 
 # --- Main UI ---
@@ -215,72 +219,65 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📋 Upload Squad Export (.html)")
-    squad_file = st.file_uploader("Upload your FM24 squad HTML export", type=["html"], key="squad")
+    squad_file = st.file_uploader("Upload your FM24 squad HTML export", type=["html"])
 
 with col2:
     st.subheader("📁 Upload Transfer Market Export (.html)")
-    transfer_file = st.file_uploader("Upload your FM24 transfer market HTML export", type=["html"], key="transfer")
+    transfer_file = st.file_uploader("Upload your FM24 transfer market HTML export", type=["html"])
 
 squad_df = None
 transfer_df = None
 
-if squad_file is not None:
-    try:
-        html_content = squad_file.read()
-        html_str = html_content.decode("utf-8")
-        squad_df = parse_html_to_df(html_str)
-        if squad_df is not None:
-            st.success("Squad data loaded successfully!")
-            st.dataframe(squad_df)
-    except Exception as e:
-        st.error(f"Error reading squad HTML file: {e}")
+if squad_file:
+    html_bytes = squad_file.read()
+    squad_df = parse_html_to_df(html_bytes.decode("utf-8"))
+    if squad_df is not None:
+        st.markdown("### Squad Data Preview")
+        st.dataframe(squad_df)
 
-if transfer_file is not None:
-    try:
-        html_content = transfer_file.read()
-        html_str = html_content.decode("utf-8")
-        transfer_df = parse_html_to_df(html_str)
-        if transfer_df is not None:
-            st.success("Transfer market data loaded successfully!")
-            st.dataframe(transfer_df)
-    except Exception as e:
-        st.error(f"Error reading transfer HTML file: {e}")
+if transfer_file:
+    html_bytes = transfer_file.read()
+    transfer_df = parse_html_to_df(html_bytes.decode("utf-8"))
+    if transfer_df is not None:
+        st.markdown("### Transfer Market Data Preview")
+        st.dataframe(transfer_df)
 
-# --- Player selection & display ---
+# Select player from squad to display details & radar
 if squad_df is not None:
-    st.subheader("🔍 Search and Analyze Squad Player")
-    player_name = st.selectbox("Select a player to view details and radar chart", options=squad_df["Name"].tolist())
-    if player_name:
-        display_player_details(squad_df, player_name)
+    st.markdown("---")
+    st.subheader("🔎 Analyze Squad Player")
+    player_list = squad_df["Name"].tolist()
+    selected_player = st.selectbox("Select a player to view details", player_list)
+    if selected_player:
+        display_player_details(squad_df, selected_player)
 
+# Select player from transfer market to display details & radar
 if transfer_df is not None:
-    st.subheader("🔍 Search Transfer Market Player")
-    transfer_player_name = st.selectbox("Select a transfer market player to view details", options=transfer_df["Name"].tolist(), key="transfer_select")
-    if transfer_player_name:
-        display_player_details(transfer_df, transfer_player_name)
+    st.markdown("---")
+    st.subheader("🔎 Analyze Transfer Market Player")
+    transfer_player_list = transfer_df["Name"].tolist()
+    selected_transfer_player = st.selectbox("Select a transfer target player", transfer_player_list, key="transfer_select")
+    if selected_transfer_player:
+        display_player_details(transfer_df, selected_transfer_player)
 
-# --- AI Question (optional example) ---
-st.subheader("🤖 Ask AI about your FM24 squad or transfers")
-question = st.text_input("Ask a question about your squad or transfer market:")
+# --- Optional: AI Q&A Section (stub for your OpenAI implementation) ---
+st.markdown("---")
+st.subheader("🤖 Ask AI about your squad or transfers")
+question = st.text_input("Enter your question here:")
 
-if question:
-    # Prepare prompt with simple data summary (could be improved)
-    squad_names = squad_df["Name"].tolist() if squad_df is not None else []
-    transfer_names = transfer_df["Name"].tolist() if transfer_df is not None else []
-    prompt = f"""You are an expert Football Manager 2024 assistant.
-I have a squad with players: {', '.join(squad_names)}.
-I am looking at these transfer market players: {', '.join(transfer_names)}.
-Answer this question: {question}
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400,
-            temperature=0.7,
-        )
-        answer = response.choices[0].message.content
-        st.markdown(f"**AI Answer:** {answer}")
-    except Exception as e:
-        st.error(f"Error from OpenAI API: {e}")
+if question and client:
+    with st.spinner("Thinking..."):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an FM24 assistant helping analyze football data."},
+                    {"role": "user", "content": question}
+                ]
+            )
+            answer = response.choices[0].message.content
+            st.markdown(f"**Answer:** {answer}")
+        except Exception as e:
+            st.error(f"Error communicating with OpenAI API: {e}")
+elif question and not client:
+    st.warning("OpenAI API key not set. Please configure your API key.")
