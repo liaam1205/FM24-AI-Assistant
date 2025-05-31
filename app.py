@@ -56,28 +56,28 @@ if uploaded_file is not None:
 if st.button("Analyze with ChatGPT") and api_key and user_query:
   with st.spinner("Thinking..."):
     try:
-    prompt = f"""
-    You are an assistant analyzing a Football Manager 2024 squad.
-    Here are the player stats:
+      prompt = f"""
+      You are an assistant analyzing a Football Manager 2024 squad.
+      Here are the player stats:
 
-    {df.to_markdown(index=False)}
+      {df.to_markdown(index=False)}
 
-  Answer the user's question based on these stats:
-  """
-  full_prompt = prompt + user_query
+    Answer the user's question based on these stats:
+    """
+    full_prompt = prompt + user_query
 
-  response = openai.ChatCompletion.create(
-  model="gpt-4",
-  messages=[
-  {"role": "system", "content": "You are a tactical football analyst."},
-  {"role": "user", "content": full_prompt}
+    response = openai.ChatCompletion.create(
+    model="gpt-4",
+    messages=[
+    {"role": "system", "content": "You are a tactical football analyst."},
+    {"role": "user", "content": full_prompt}
   ],
-  temperature=0.7,
-  max_tokens=800
+    temperature=0.7,
+    max_tokens=800
   )
-  answer = response["choices"][0]["message"]["content"]
-  st.markdown("### 🧠 ChatGPT's Insights")
-  st.markdown(answer)
+    answer = response["choices"][0]["message"]["content"]
+    st.markdown("### 🧠 ChatGPT's Insights")
+    st.markdown(answer)
 
 except Exception as e:
   st.error(f"⚠️ ChatGPT API call failed: {e}")
