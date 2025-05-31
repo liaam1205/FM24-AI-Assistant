@@ -24,22 +24,23 @@ except Exception:
 # --- Position aliases and normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
-    "D (C)": "Centre Back",
-    "D (L)": "Fullback",
-    "D (R)": "Fullback",
-    "WB (L)": "Wingback",
-    "WB (R)": "Wingback",
+    "D(C)": "Centre Back",
+    "DC": "Centre Back",
+    "D(L)": "Fullback",
+    "D(R)": "Fullback",
+    "WB(L)": "Wingback",
+    "WB(R)": "Wingback",
     "DM": "Defensive Midfielder",
-    "M (C)": "Central Midfielder",
+    "M(C)": "Central Midfielder",
     "MC": "Central Midfielder",
     "AM": "Attacking Midfielder",
-    "AM (C)": "Attacking Midfielder",
-    "M (L)": "Wide Midfielder",
-    "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",
-    "AM (R)": "Inside Forward",
+    "AM(C)": "Attacking Midfielder",
+    "M(L)": "Wide Midfielder",
+    "M(R)": "Wide Midfielder",
+    "AM(L)": "Inside Forward",
+    "AM(R)": "Inside Forward",
     "IF": "Inside Forward",
-    "ST (C)": "Striker",
+    "ST(C)": "Striker",
     "FW": "Forward",
     "CF": "Complete Forward",
     "WF": "Wide Forward",
@@ -48,12 +49,10 @@ position_aliases = {
 def normalize_position(pos_str):
     if not isinstance(pos_str, str):
         return "Unknown"
-    positions = [p.strip() for p in pos_str.split(",")]
+    positions = [p.strip().upper().replace(" ", "").replace(" ", "") for p in pos_str.split(",")]
     for pos in positions:
-        pos_clean = pos.upper().replace(" ", "")
-        for alias_key in position_aliases:
-            if alias_key.replace(" ", "") == pos_clean:
-                return position_aliases[alias_key]
+        if pos in position_aliases:
+            return position_aliases[pos]
     return "Unknown"
 
 # --- Metrics per position for radar chart ---
@@ -164,14 +163,15 @@ def display_player_details(df: pd.DataFrame, player_name: str):
     player_data = player_rows.iloc[0].to_dict()
 
     st.subheader(f"{player_name} — {player_data.get('Normalized Position', 'Unknown')}")
-    
-    # Exclude some columns
+
+    # Exclude some columns for display clarity
     exclude_cols = ["Normalized Position", "Rec", "Potential", "Ability", "Name", "Position", "Pos"]
     stats = {col: player_data.get(col, "") for col in df.columns if col not in exclude_cols}
-    
+
     stats_df = pd.DataFrame(stats.items(), columns=["Stat", "Value"])
     stats_df["Value"] = stats_df["Value"].astype(str)
 
+    # Display as a table for neatness
     st.table(stats_df)
 
     # Radar chart
