@@ -10,7 +10,7 @@ st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered i
 # --- Sidebar API Key Input ---
 api_key = st.sidebar.text_input("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", type="password")
 if api_key:
-openai.api_key = api_key
+  openai.api_key = api_key
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
@@ -25,8 +25,8 @@ seen = {}
 unique_headers = []
 for col in headers:
 if col in seen:
-seen[col] += 1
-unique_headers.append(f"{col}_{seen[col]}")
+  seen[col] += 1
+  unique_headers.append(f"{col}_{seen[col]}")
 else:
 seen[col] = 0
 unique_headers.append(col)
@@ -35,7 +35,7 @@ rows = []
 for row in table.find_all("tr")[1:]:
 cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
 if len(cols) == len(unique_headers):
-rows.append(cols)
+  rows.append(cols)
 else:
 st.warning(f"Skipping row due to column mismatch: {cols}")
 
@@ -43,14 +43,14 @@ df = pd.DataFrame(rows, columns=unique_headers)
 return df
 
 if uploaded_file is not None:
-st.success("✅ File uploaded successfully!")
-df = parse_html_to_df(uploaded_file)
+  st.success("✅ File uploaded successfully!")
+  df = parse_html_to_df(uploaded_file)
 
-st.subheader("📋 Raw Player Stats")
-st.dataframe(df, use_container_width=True)
+  st.subheader("📋 Raw Player Stats")
+  st.dataframe(df, use_container_width=True)
 
-st.subheader("🤖 Ask the AI About Your Squad")
-user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
+  st.subheader("🤖 Ask the AI About Your Squad")
+  user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
 
 if st.button("Analyze with ChatGPT") and api_key and user_query:
 with st.spinner("Thinking..."):
