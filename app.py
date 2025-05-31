@@ -222,14 +222,14 @@ if uploaded_squad_file:
             with st.spinner("Analyzing squad with AI..."):
                 try:
                     prompt = f"""
-                    You are a football analyst. Here are player stats from a Football Manager 2024 squad:
+You are a football analyst. Here are player stats from a Football Manager 2024 squad:
 
-                    {squad_df.to_markdown(index=False)}
+{squad_df.to_markdown(index=False)}
 
-                    Answer the user question based on these stats:
+Answer the user question based on these stats:
 
-                    Question: {squad_question}
-                    """
+Question: {squad_question}
+"""
                     response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
@@ -266,14 +266,14 @@ if uploaded_transfer_file:
             with st.spinner("Analyzing transfer market with AI..."):
                 try:
                     prompt = f"""
-                    You are a football analyst. Here are player stats from a Football Manager 2024 transfer market export:
+You are a football analyst. Here are player stats from a Football Manager 2024 transfer market export:
 
-                    {transfer_df.to_markdown(index=False)}
+{transfer_df.to_markdown(index=False)}
 
-                    Answer the user question based on these stats:
+Answer the user question based on these stats:
 
-                    Question: {transfer_question}
-                    """
+Question: {transfer_question}
+"""
                     response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
@@ -325,4 +325,4 @@ if not squad_df.empty:
     display_player_details(squad_df, "Squad Player Details")
 
 if not transfer_df.empty:
-    display_player_details(transfer_df, "Transfer
+    display_player_details(transfer_df, "Transfer Market Player Details")
