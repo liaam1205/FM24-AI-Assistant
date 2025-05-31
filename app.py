@@ -49,7 +49,7 @@ position_aliases = {
 def normalize_position(pos_str):
     if not isinstance(pos_str, str):
         return "Unknown"
-    positions = [p.strip().upper().replace(" ", "").replace(" ", "") for p in pos_str.split(",")]
+    positions = [p.strip().upper() for p in pos_str.split(",")]
     for pos in positions:
         if pos in position_aliases:
             return position_aliases[pos]
@@ -104,7 +104,7 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=headers)
 
-        # Clean numeric columns
+        # Clean numeric columns (remove commas, % and convert where possible)
         for col in df.columns:
             if df[col].dtype == object:
                 df[col] = df[col].str.replace(",", "").str.replace("%", "", regex=False)
@@ -214,21 +214,15 @@ def generate_ai_scouting_report(player_data: dict) -> str:
     except Exception as e:
         return f"Error generating AI report: {e}"
 
-# --- UI ---
+# --- Sidebar ---
 with st.sidebar:
     st.header("Upload your FM24 files")
     squad_file = st.file_uploader("Upload Squad HTML Export", type=["html"])
     transfer_file = st.file_uploader("Upload Transfer Market HTML Export", type=["html"])
 
-if squad_file:
-    squad_df = parse_html(squad_file)
-else:
-    squad_df = None
-
-if transfer_file:
-    transfer_df = parse_html(transfer_file)
-else:
-    transfer_df = None
+# --- Main content ---
+squad_df = parse_html(squad_file) if squad_file else None
+transfer_df = parse_html(transfer_file) if transfer_file else None
 
 if squad_df is not None:
     st.header("Squad Players")
@@ -248,3 +242,6 @@ if squad_df is not None:
 if transfer_df is not None:
     st.header("Transfer Market Players")
     st.dataframe(transfer_df)
+
+if not squad_file and not transfer_file:
+    st.info("Please upload your Squad and/or Transfer Market HTML export files using the sidebar.")
