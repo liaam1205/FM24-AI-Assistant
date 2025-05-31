@@ -34,8 +34,8 @@ position_aliases = {
     "AM (C)": "Attacking Midfielder",
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",      # First Inside Forward alias
-    "AM (R)": "Inside Forward",      # Second Inside Forward alias
+    "AM (L)": "Inside Forward",       # Inside Forward Left
+    "AM (R)": "Inside Forward",       # Inside Forward Right
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -118,16 +118,14 @@ position_metrics = {
     ]
 }
 
-# --- Parse HTML file to DataFrame (works for squad or transfer) ---
-def parse_html_to_df(html_file):
+# --- Parse HTML file to DataFrame ---
+def parse_html_to_df(html_str):
     try:
-        soup = BeautifulSoup(html_file, 'html.parser')
-        tables = soup.find_all("table")
-        if not tables:
+        soup = BeautifulSoup(html_str, 'html.parser')
+        table = soup.find("table")
+        if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
-
-        table = tables[0]  # Take first table as default
 
         headers = [th.get_text(strip=True) for th in table.find_all("th")]
 
@@ -136,62 +134,26 @@ def parse_html_to_df(html_file):
             cells = tr.find_all("td")
             if not cells:
                 continue
-
-            row = []
-            for td in cells:
-                a_tag = td.find("a")
-                if a_tag:
-                    cell_text = a_tag.get_text(strip=True)
-                else:
-                    cell_text = td.get_text(strip=True)
-                row.append(cell_text)
-
+            row = [td.get_text(strip=True) for td in cells]
             if len(row) == len(headers):
                 rows.append(row)
 
         df = pd.DataFrame(rows, columns=headers)
 
-        # Clean 'Value' and 'Wage' columns by removing currency symbols and converting K/M suffixes to numbers
-        def convert_value(val):
-            if not isinstance(val, str):
-                return val
-            val = val.replace("£", "").replace(",", "").strip()
-            multiplier = 1
-            if val.endswith("M"):
-                multiplier = 1_000_000
-                val = val[:-1]
-            elif val.endswith("K"):
-                multiplier = 1_000
-                val = val[:-1]
-            try:
-                return float(val) * multiplier
-            except:
-                return None
-
-        for col in ["Value", "Wage"]:
-            if col in df.columns:
-                df[col] = df[col].apply(convert_value)
-
         # Convert numeric columns where possible
-        numeric_cols = ["Age", "Value", "Wage", "Goals", "Assists", "Appearances"]
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+        for col in df.columns:
+            # Remove commas and % signs before conversion
+            df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
 
         # Normalize positions
-        position_col = None
-        for col_name in ["Position", "Pos"]:
-            if col_name in df.columns:
-                position_col = col_name
-                break
-
-        if position_col:
-            df["Normalized Position"] = df[position_col].apply(normalize_position)
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        elif "Pos" in df.columns:
+            df["Normalized Position"] = df["Pos"].apply(normalize_position)
         else:
             df["Normalized Position"] = "Unknown"
 
         return df
-
     except Exception as e:
         st.error(f"Error parsing HTML file: {e}")
         return None
@@ -249,7 +211,6 @@ def display_player_details(df, player_name):
     plot_player_radar(player_data, valid_metrics, title=f"{player_name} - {position}")
 
 # --- Main UI ---
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -264,29 +225,62 @@ squad_df = None
 transfer_df = None
 
 if squad_file is not None:
-    squad_df = parse_html_to_df(squad_file.read())
-    if squad_df is not None:
-        st.success("Squad data loaded successfully!")
-        st.dataframe(squad_df)
+    try:
+        html_content = squad_file.read()
+        html_str = html_content.decode("utf-8")
+        squad_df = parse_html_to_df(html_str)
+        if squad_df is not None:
+            st.success("Squad data loaded successfully!")
+            st.dataframe(squad_df)
+    except Exception as e:
+        st.error(f"Error reading squad HTML file: {e}")
 
 if transfer_file is not None:
-    transfer_df = parse_html_to_df(transfer_file.read())
-    if transfer_df is not None:
-        st.success("Transfer market data loaded successfully!")
-        st.dataframe(transfer_df)
+    try:
+        html_content = transfer_file.read()
+        html_str = html_content.decode("utf-8")
+        transfer_df = parse_html_to_df(html_str)
+        if transfer_df is not None:
+            st.success("Transfer market data loaded successfully!")
+            st.dataframe(transfer_df)
+    except Exception as e:
+        st.error(f"Error reading transfer HTML file: {e}")
 
-# --- Player selection and display ---
-
+# --- Player selection & display ---
 if squad_df is not None:
-    st.subheader("🔍 Search Squad Player Details")
-    squad_player_names = squad_df["Name"].tolist()
-    selected_player = st.selectbox("Select a player from squad", squad_player_names)
-    if selected_player:
-        display_player_details(squad_df, selected_player)
+    st.subheader("🔍 Search and Analyze Squad Player")
+    player_name = st.selectbox("Select a player to view details and radar chart", options=squad_df["Name"].tolist())
+    if player_name:
+        display_player_details(squad_df, player_name)
 
 if transfer_df is not None:
-    st.subheader("🔍 Search Transfer Market Player Details")
-    transfer_player_names = transfer_df["Name"].tolist()
-    selected_transfer_player = st.selectbox("Select a player from transfer market", transfer_player_names)
-    if selected_transfer_player:
-        display_player_details(transfer_df, selected_transfer_player)
+    st.subheader("🔍 Search Transfer Market Player")
+    transfer_player_name = st.selectbox("Select a transfer market player to view details", options=transfer_df["Name"].tolist(), key="transfer_select")
+    if transfer_player_name:
+        display_player_details(transfer_df, transfer_player_name)
+
+# --- AI Question (optional example) ---
+st.subheader("🤖 Ask AI about your FM24 squad or transfers")
+question = st.text_input("Ask a question about your squad or transfer market:")
+
+if question:
+    # Prepare prompt with simple data summary (could be improved)
+    squad_names = squad_df["Name"].tolist() if squad_df is not None else []
+    transfer_names = transfer_df["Name"].tolist() if transfer_df is not None else []
+    prompt = f"""You are an expert Football Manager 2024 assistant.
+I have a squad with players: {', '.join(squad_names)}.
+I am looking at these transfer market players: {', '.join(transfer_names)}.
+Answer this question: {question}
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.7,
+        )
+        answer = response.choices[0].message.content
+        st.markdown(f"**AI Answer:** {answer}")
+    except Exception as e:
+        st.error(f"Error from OpenAI API: {e}")
