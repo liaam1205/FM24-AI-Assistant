@@ -3,85 +3,85 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import openai
 
+# --- App Config ---
 st.set_page_config(page_title="FM24 Squad Analyzer", layout="wide")
 st.title("📊 Football Manager 2024 Squad Analyzer")
 st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered insights and charts.")
 
-# --- API Key Input ---
-API_KEY: {{ secrets.API_KEY }}
-
-load_dotenv()
-api_key = os.getenv("API_KEY")
+# --- API Key ---
+api_key = st.secrets["API_KEY"]
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
 
 def parse_html_to_df(file):
-  soup = BeautifulSoup(file, "html.parser")
-  table = soup.find("table")
-  headers = [th.get_text(strip=True) for th in table.find_all("th")]
+    soup = BeautifulSoup(file, "html.parser")
+    table = soup.find("table")
+    headers = [th.get_text(strip=True) for th in table.find_all("th")]
 
-# Make column headers unique to avoid duplication error
-seen = {}
-unique_headers = []
-for col in headers:
-  if col in seen:
-    seen[col] += 1
-    unique_headers.append(f"{col}_{seen[col]}")
-  else:
-    seen[col] = 0
-    unique_headers.append(col)
+    # Make column headers unique
+    seen = {}
+    unique_headers = []
+    for col in headers:
+        if col in seen:
+            seen[col] += 1
+            unique_headers.append(f"{col}_{seen[col]}")
+        else:
+            seen[col] = 0
+            unique_headers.append(col)
 
-rows = []
-for row in table.find_all("tr")[1:]:
-  cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
-  if len(cols) == len(unique_headers):
-    rows.append(cols)
-  else:
-    st.warning(f"Skipping row due to column mismatch: {cols}")
+    rows = []
+    for row in table.find_all("tr")[1:]:
+        cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
+        if len(cols) == len(unique_headers):
+            rows.append(cols)
+        else:
+            st.warning(f"Skipping row due to column mismatch: {cols}")
 
-df = pd.DataFrame(rows, columns=unique_headers)
-return df
+    df = pd.DataFrame(rows, columns=unique_headers)
+    return df
 
+# --- App Logic ---
 if uploaded_file is not None:
-  st.success("✅ File uploaded successfully!")
-  df = parse_html_to_df(uploaded_file)
+    st.success("✅ File uploaded successfully!")
+    df = parse_html_to_df(uploaded_file)
 
-  st.subheader("📋 Raw Player Stats")
-  st.dataframe(df, use_container_width=True)
+    st.subheader("📋 Raw Player Stats")
+    st.dataframe(df, use_container_width=True)
 
-  st.subheader("🤖 Ask the AI About Your Squad")
-  user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
+    st.subheader("🤖 Ask the AI About Your Squad")
+    user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
 
-if st.button("Analyze with ChatGPT") and api_key and user_query:
-    with st.spinner("Thinking..."):
-        try:
-            prompt = f"""
-            You are an assistant analyzing a Football Manager 2024 squad.
-            Here are the player stats:
+    if st.button("Analyze with ChatGPT") and user_query:
+        with st.spinner("Thinking..."):
+            try:
+                prompt = f"""
+                You are an assistant analyzing a Football Manager 2024 squad.
+                Here are the player stats:
 
-            {df.to_markdown(index=False)}
+                {df.to_markdown(index=False)}
 
-            Answer the user's question based on these stats:
-            """
+                Answer the user's question based on these stats:
+                """
 
-            full_prompt = prompt + user_query
+                full_prompt = prompt + "\n\nUser question: " + user_query
 
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a tactical football analyst."},
-                    {"role": "user", "content": full_prompt}
-                ],
-                temperature=0.7,
-                max_tokens=800
-            )
+                response = openai.ChatCompletion.create(
+                    api_key=api_key,
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are a tactical football analyst."},
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=800
+                )
 
-            answer = response["choices"][0]["message"]["content"]
-            st.markdown("### 🧠 ChatGPT's Insights")
-            st.markdown(answer)
+                answer = response["choices"][0]["message"]["content"]
+                st.markdown("### 🧠 ChatGPT's Insights")
+                st.markdown(answer)
 
-        except Exception as e:
-            st.error(f"⚠️ ChatGPT API call failed: {e}")
+            except Exception as e:
+                st.error(f"⚠️ ChatGPT API call failed: {e}")
 else:
-    st.info("Please upload your FM24 export to begin.")
+    st.info("📁 Please upload your FM24 HTML export to begin.")
