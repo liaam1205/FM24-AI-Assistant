@@ -397,16 +397,17 @@ if squad_df is not None:
 
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
-    st.dataframe(transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False))
+
+    # Default filtered is the whole transfer_df sorted
+    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
+    st.dataframe(filtered)
 
     transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
     if transfer_search:
-        filtered = transfer_df[
-            transfer_df["Name"].str.contains(transfer_search, case=False, na=False) |
-            transfer_df["Club"].str.contains(transfer_search, case=False, na=False)
+        filtered = filtered[
+            filtered["Name"].str.contains(transfer_search, case=False, na=False) |
+            filtered["Club"].str.contains(transfer_search, case=False, na=False)
         ]
 
-        # Make columns unique before showing
         filtered.columns = make_unique_columns(list(filtered.columns))
-
         st.dataframe(filtered)
