@@ -13,6 +13,42 @@ def print_duplicate_columns(df):
     else:
         print("No duplicate columns found.")
 
+# --- Helper function: make columns unique by suffixing duplicates ---
+def make_unique_columns(cols):
+    seen = {}
+    result = []
+    for col in cols:
+        if col not in seen:
+            seen[col] = 0
+            result.append(col)
+        else:
+            seen[col] += 1
+            result.append(f"{col}_{seen[col]}")
+    return result
+
+if transfer_df is not None:
+    st.subheader("Transfer Market Overview")
+
+    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
+
+    print_duplicate_columns(filtered)
+
+    st.dataframe(filtered)
+
+    transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
+
+    if transfer_search:
+        filtered = filtered[
+            filtered["Name"].str.contains(transfer_search, case=False, na=False) |
+            filtered["Club"].str.contains(transfer_search, case=False, na=False)
+        ]
+
+        print_duplicate_columns(filtered)
+
+        filtered.columns = make_unique_columns(list(filtered.columns))
+
+        st.dataframe(filtered)
+
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
