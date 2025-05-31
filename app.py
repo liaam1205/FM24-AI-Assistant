@@ -200,8 +200,11 @@ def parse_html(file) -> pd.DataFrame | None:
 
         # Clean numeric columns: remove commas, %, convert to numeric
         for col in df.columns:
-            df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "")
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if df[col].dtype == object:
+        # Remove commas and percent signs
+        df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
+        # Try converting to numeric
+        df[col] = pd.to_numeric(df[col], errors="ignore")
 
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
