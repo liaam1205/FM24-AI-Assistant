@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # --- App Config ---
-st.set_page_config(page_title="FM24 Squad & Market Analyzer", layout="wide")
+st.set_page_config(page_title="FM24 Squad & Transfer Market Analyzer", layout="wide")
 st.title("📊 FM24 Squad & Transfer Market Analyzer")
 
 # --- API Key ---
@@ -20,11 +20,16 @@ st.sidebar.header("📁 Upload Files")
 squad_file = st.sidebar.file_uploader("Upload Squad Export (.html)", type=["html"], key="squad")
 market_file = st.sidebar.file_uploader("Upload Transfer Market Export (.html)", type=["html"], key="market")
 
-# --- HTML Parser ---
+# --- Improved HTML Parser ---
 def parse_html_to_df(file):
     soup = BeautifulSoup(file, "html.parser")
     table = soup.find("table")
-    headers = [th.get_text(strip=True) for th in table.find_all("th")]
+
+    if not table:
+        st.warning("⚠️ No table found in the uploaded HTML.")
+        return pd.DataFrame()
+
+    headers = [th.get_text(strip=True).replace("\xa0", " ") for th in table.find_all("th")]
 
     seen = {}
     unique_headers = []
@@ -38,10 +43,24 @@ def parse_html_to_df(file):
 
     rows = []
     for row in table.find_all("tr")[1:]:
-        cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
+        cols = [td.get_text(strip=True).replace("\xa0", " ") for td in row.find_all("td")]
         if len(cols) == len(unique_headers):
             rows.append(cols)
+
     df = pd.DataFrame(rows, columns=unique_headers)
+
+    # Try to identify the player name column
+    name_candidates = [col for col in df.columns if col.lower() in ["name", "player", "full name", "nombre"]]
+    if name_candidates:
+        df.rename(columns={name_candidates[0]: "Name"}, inplace=True)
+
+    # Drop rows without valid names
+    if "Name" in df.columns:
+        df = df[df["Name"].str.strip() != ""]
+    else:
+        st.warning("⚠️ Could not find a 'Name' column in the file.")
+        return pd.DataFrame()
+
     return df
 
 # --- Pizza Chart ---
@@ -68,10 +87,11 @@ def plot_pizza_chart(player_name, player_row, stat_cols):
     ax.grid(True)
     return fig
 
-# --- Data Processing ---
+# --- Load DataFrames ---
 squad_df = parse_html_to_df(squad_file) if squad_file else None
 market_df = parse_html_to_df(market_file) if market_file else None
 
+# --- Display Tables ---
 if squad_df is not None:
     st.subheader("🏠 Your Squad")
     st.dataframe(squad_df, use_container_width=True)
@@ -115,7 +135,7 @@ if st.button("Analyze with ChatGPT") and user_query:
         except Exception as e:
             st.error(f"❌ ChatGPT API call failed: {e}")
 
-# --- Player Radar View ---
+# --- Player Stat Radar ---
 st.subheader("📈 Player Stat Radar")
 
 player_source = st.radio("Select from:", ["Squad", "Transfer Market"])
@@ -142,4 +162,4 @@ if player_df is not None and "Name" in player_df.columns:
         else:
             st.info("⚠️ Not enough metrics for radar chart.")
 else:
-    st.info("Please upload a valid file with 'Name' column.")
+    st.info("Please upload a valid file with a 'Name' column.")
