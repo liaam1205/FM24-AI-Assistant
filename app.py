@@ -407,6 +407,25 @@ if transfer_df is not None:
         ]
         st.dataframe(filtered)
 
+# Function to make DataFrame columns unique by adding suffixes to duplicates
+def make_unique_columns(cols):
+    seen = {}
+    result = []
+    for col in cols:
+        if col not in seen:
+            seen[col] = 0
+            result.append(col)
+        else:
+            seen[col] += 1
+            result.append(f"{col}_{seen[col]}")
+    return result
+
+# Apply to filtered DataFrame columns
+filtered.columns = make_unique_columns(filtered.columns)
+
+# Now show the dataframe in Streamlit
+st.dataframe(filtered)
+
 # --- Footer ---
 st.markdown("---")
 st.markdown("Created with ❤️ by Your FM24 AI Assistant")
