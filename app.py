@@ -146,7 +146,8 @@ header_mapping = {
 }
 
 # --- Robust HTML parser function ---
-def parse_html(file) -> pd.DataFrame | None:
+
+    def parse_html(file) -> pd.DataFrame | None:
     try:
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, 'html.parser')
@@ -169,10 +170,8 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-        # Map headers using mapping; None for unknown headers
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Filter only columns with valid headers
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
@@ -181,7 +180,7 @@ def parse_html(file) -> pd.DataFrame | None:
         for tr in trs:
             cells = tr.find_all("td")
             if len(cells) == 0:
-                continue  # skip header or empty rows
+                continue
 
             row = []
             for i in valid_cols_idx:
@@ -198,17 +197,22 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns: remove commas, %, convert to numeric
+        # Clean numeric columns
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
+                df[col] = pd.to_numeric(df[col], errors="ignore")
 
-   def parse_html(file) -> pd.DataFrame | None:
-    try:
-        html = file.read().decode("utf-8")
-        soup = BeautifulSoup(html, 'html.parser')
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        else:
+            df["Normalized Position"] = "Unknown"
 
-        table = soup.find("table")
-        if not table:
-            st.error("No table found in the uploaded HTML file.")
-            return None
+        return df
+
+    except Exception as e:
+        st.error(f"Error parsing HTML: {e}")
+        return None
 
         # Headers extraction from thead or first row
         thead = table.find("thead")
