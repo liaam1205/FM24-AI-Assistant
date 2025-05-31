@@ -198,7 +198,11 @@ def parse_html(file) -> pd.DataFrame | None:
         df = pd.DataFrame(rows, columns=valid_headers)
 
         # Clean numeric columns
+        # Clean numeric columns
         for col in df.columns:
+            if col is None or col not in df:
+                continue  # Skip unknown or invalid columns
+
             if df[col].dtype == object:
                 df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
                 df[col] = pd.to_numeric(df[col], errors="ignore")
