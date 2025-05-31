@@ -21,10 +21,14 @@ def parse_html_to_df(file):
     table = soup.find("table")
     headers = [th.get_text(strip=True) for th in table.find_all("th")]
     rows = []
+
     for row in table.find_all("tr")[1:]:
         cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
-        if cols:
+        if len(cols) == len(headers):
             rows.append(cols)
+        else:
+            st.warning(f"Skipping row due to column mismatch: {cols}")
+
     df = pd.DataFrame(rows, columns=headers)
     return df
 
