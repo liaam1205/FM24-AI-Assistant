@@ -10,6 +10,7 @@ st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered i
 
 # --- API Key ---
 api_key = st.secrets["API_KEY"]
+client = openai.OpenAI(api_key=api_key)
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
@@ -66,8 +67,7 @@ if uploaded_file is not None:
 
                 full_prompt = prompt + "\n\nUser question: " + user_query
 
-                response = openai.ChatCompletion.create(
-                    api_key=api_key,
+                response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
                         {"role": "system", "content": "You are a tactical football analyst."},
@@ -77,7 +77,7 @@ if uploaded_file is not None:
                     max_tokens=800
                 )
 
-                answer = response["choices"][0]["message"]["content"]
+                answer = response.choices[0].message.content
                 st.markdown("### 🧠 ChatGPT's Insights")
                 st.markdown(answer)
 
