@@ -139,7 +139,7 @@ header_mapping = {
     "Clean Sheets": "Clean Sheets",
     "Svh": "Saves Held",
     "Svp": "Saves Parried",
-    "Sv": "Saves Tipped",
+    "Svt": "Saves Tipped",
 }
 
 # --- Robust HTML parser function ---
