@@ -200,12 +200,63 @@ def parse_html(file) -> pd.DataFrame | None:
 
         # Clean numeric columns: remove commas, %, convert to numeric
 
-    for col in df.columns:
-        if df[col].dtype == object:
-        # Remove commas and percent signs
-        df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
-        # Try converting to numeric
-        df[col] = pd.to_numeric(df[col], errors="ignore")
+   def parse_html(file) -> pd.DataFrame | None:
+    try:
+        html = file.read().decode("utf-8")
+        soup = BeautifulSoup(html, 'html.parser')
+
+        table = soup.find("table")
+        if not table:
+            st.error("No table found in the uploaded HTML file.")
+            return None
+
+        # Headers extraction from thead or first row
+        thead = table.find("thead")
+        if thead:
+            header_cells = thead.find_all("th")
+        else:
+            first_tr = table.find("tr")
+            header_cells = first_tr.find_all("th") if first_tr else []
+
+        if not header_cells:
+            st.error("No table headers found.")
+            return None
+
+        headers_raw = [th.get_text(strip=True) for th in header_cells]
+        # Map headers using mapping; None for unknown headers
+        headers = [header_mapping.get(h, None) for h in headers_raw]
+
+        # Filter only columns with valid headers
+        valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
+        valid_headers = [h for h in headers if h is not None]
+
+        rows = []
+        trs = table.find_all("tr")
+        for tr in trs:
+            cells = tr.find_all("td")
+            if len(cells) == 0:
+                continue  # skip header or empty rows
+
+            row = []
+            for i in valid_cols_idx:
+                if i < len(cells):
+                    row.append(cells[i].get_text(strip=True))
+                else:
+                    row.append("")
+            if len(row) == len(valid_headers):
+                rows.append(row)
+
+        if not rows:
+            st.warning("No data rows found in the table.")
+            return None
+
+        df = pd.DataFrame(rows, columns=valid_headers)
+
+        # Clean numeric columns
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
+                df[col] = pd.to_numeric(df[col], errors="ignore")
 
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
@@ -217,7 +268,7 @@ def parse_html(file) -> pd.DataFrame | None:
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
         return None
-
+        
 # --- Plot radar (pizza) chart ---
 def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
     labels = metrics
