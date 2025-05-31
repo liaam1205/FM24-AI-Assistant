@@ -66,8 +66,8 @@ if st.button("Analyze with ChatGPT") and api_key and user_query:
     """
     try:
       full_prompt = prompt + user_query
-finally:
-    print("This will always run.")
+except Exception as e:
+    print(f"Error: {e}")
 
     response = openai.ChatCompletion.create(
     model="gpt-4",
