@@ -7,10 +7,12 @@ st.set_page_config(page_title="FM24 Squad Analyzer", layout="wide")
 st.title("📊 Football Manager 2024 Squad Analyzer")
 st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered insights and charts.")
 
-# --- Sidebar API Key Input ---
-api_key = st.sidebar.text_input("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", type="password")
-if api_key:
-  openai.api_key = api_key
+# --- env API Key Input ---
+from dotenv import load_dotenv
+  import os
+
+load_dotenv()
+api_key = os.getenv("API_KEY")
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
