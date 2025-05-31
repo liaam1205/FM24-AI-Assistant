@@ -37,8 +37,6 @@ position_aliases = {
     "M (R)": "Wide Midfielder",
     "AM (L)": "Winger",
     "AM (R)": "Winger",
-    "AM (L)": "Inside Forward",
-    "AM (R)": "Inside Forward",
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -145,7 +143,8 @@ def parse_html_to_df(html_file):
 
         # Convert numeric columns where possible
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
 
         # Normalize positions
         if "Position" in df.columns:
@@ -170,7 +169,7 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val = 0
         values.append(float(val))
 
-    values += values[:1]
+    values += values[:1]  # close the loop
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
@@ -222,4 +221,11 @@ with col1:
 
 with col2:
     st.subheader("📁 Upload Transfer Market Export (.html)")
-    transfer_file = st.file
+    transfer_file = st.file_uploader("Upload your FM24 transfer market HTML export", type=["html"], key="transfer")
+
+squad_df = None
+transfer_df = None
+
+if squad_file is not None:
+    squad_df = parse_html_to_df(squad_file)
+    if squad_df is not None
