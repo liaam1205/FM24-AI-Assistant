@@ -56,11 +56,11 @@ if uploaded_file is not None:
 if st.button("Analyze with ChatGPT") and api_key and user_query:
   with st.spinner("Thinking..."):
     try:
-  prompt = f"""
-  You are an assistant analyzing a Football Manager 2024 squad.
-  Here are the player stats:
+    prompt = f"""
+    You are an assistant analyzing a Football Manager 2024 squad.
+    Here are the player stats:
 
-  {df.to_markdown(index=False)}
+    {df.to_markdown(index=False)}
 
   Answer the user's question based on these stats:
   """
