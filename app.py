@@ -1,7 +1,7 @@
-    import streamlit as st
-    import pandas as pd
-    from bs4 import BeautifulSoup
-    import openai
+import streamlit as st
+import pandas as pd
+from bs4 import BeautifulSoup
+import openai
 
     st.set_page_config(page_title="FM24 Squad Analyzer", layout="wide")
     st.title("📊 Football Manager 2024 Squad Analyzer")
