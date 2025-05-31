@@ -8,8 +8,7 @@ st.title("📊 Football Manager 2024 Squad Analyzer")
 st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered insights and charts.")
 
 # --- API Key Input ---
-env:
-  API_KEY: ${{ secrets.API_KEY }}
+API_KEY: ${{ secrets.API_KEY }}
 
 load_dotenv()
 api_key = os.getenv("API_KEY")
