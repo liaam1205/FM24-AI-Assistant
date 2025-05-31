@@ -72,24 +72,16 @@ if st.button("Analyze with ChatGPT") and api_key and user_query:
                 messages=[
                     {"role": "system", "content": "You are a tactical football analyst."},
                     {"role": "user", "content": full_prompt}
-                ]
+                ],
+                temperature=0.7,
+                max_tokens=800
             )
 
-            st.markdown("### ChatGPT's Analysis")
-            st.write(response['choices'][0]['message']['content'])
+            answer = response["choices"][0]["message"]["content"]
+            st.markdown("### 🧠 ChatGPT's Insights")
+            st.markdown(answer)
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-  ],
-    temperature=0.7,
-    max_tokens=800
-  )
-    answer = response["choices"][0]["message"]["content"]
-    st.markdown("### 🧠 ChatGPT's Insights")
-    st.markdown(answer)
-
-except Exception as e:
-  st.error(f"⚠️ ChatGPT API call failed: {e}")
-
+            st.error(f"⚠️ ChatGPT API call failed: {e}")
 else:
-  st.info("Please upload your FM24 export to begin.")
+    st.info("Please upload your FM24 export to begin.")
