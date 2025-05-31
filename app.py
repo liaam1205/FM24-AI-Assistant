@@ -36,8 +36,6 @@ position_aliases = {
     "M (R)": "Wide Midfielder",
     "AM (L)": "Inside Forward",
     "AM (R)": "Inside Forward",
-    "W (L)": "Winger",
-    "W (R)": "Winger",
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -52,7 +50,7 @@ def normalize_position(pos_str):
     for pos in positions:
         pos_clean = pos.upper().replace(" ", "")
         for alias_key in position_aliases:
-            if alias_key.replace(" ", "") == pos_clean:
+            if alias_key.replace(" ", "").upper() == pos_clean:
                 return position_aliases[alias_key]
     return "Unknown"
 
@@ -144,7 +142,8 @@ def parse_html_to_df(html_file):
 
         # Convert numeric columns where possible
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace("%", "").str.replace(",", ""), errors='coerce')
+            if df[col].dtype == object:
+                df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
 
         # Normalize positions
         if "Position" in df.columns:
@@ -169,7 +168,6 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val = 0
         values.append(float(val))
 
-    # close the loop
     values += values[:1]
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
@@ -197,7 +195,7 @@ def display_player_details(df, player_name):
     st.subheader(f"Player Details: {player_name} ({player_data.get('Nationality', '')}, {player_data.get('Position', '')})")
 
     # Show player stats table excluding some big columns
-    details_to_show = {k: v for k, v in player_data.items() if k not in ['Normalized Position']}
+    details_to_show = {k: v for k, v in player_data.items() if k != 'Normalized Position'}
     st.json(details_to_show)
 
     # Radar chart by normalized position
@@ -213,7 +211,6 @@ def display_player_details(df, player_name):
     plot_player_radar(player_data, valid_metrics, title=f"{player_name} - {position}")
 
 # --- Main UI ---
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -227,85 +224,78 @@ with col2:
 squad_df = None
 transfer_df = None
 
-if squad_file is not None:
-    squad_df = parse_html_to_df(squad_file)
-    if squad_df is not None:
-        st.success(f"Squad data loaded: {len(squad_df)} players")
-        st.dataframe(squad_df)
+if squad_file:
+    squad_content = squad_file.read()
+    squad_df = parse_html_to_df(squad_content)
 
-if transfer_file is not None:
-    transfer_df = parse_html_to_df(transfer_file)
-    if transfer_df is not None:
-        st.success(f"Transfer market data loaded: {len(transfer_df)} players")
-        st.dataframe(transfer_df)
+if transfer_file:
+    transfer_content = transfer_file.read()
+    transfer_df = parse_html_to_df(transfer_content)
 
-# --- Player search and display ---
-
-st.markdown("---")
-st.subheader("🔍 Search Player Details & Radar Chart")
-
-player_name_input = st.text_input("Enter player name to display details (case sensitive):")
-
-if player_name_input:
-    df_to_search = squad_df if squad_df is not None else transfer_df
-    if df_to_search is None:
-        st.warning("Please upload at least one dataset to search players.")
-    else:
-        display_player_details(df_to_search, player_name_input)
-
-# --- Transfer market search by criteria ---
-
-st.markdown("---")
-st.subheader("📊 Transfer Market Search by Criteria")
+if squad_df is not None:
+    st.subheader("🛡️ Squad Data Preview")
+    st.dataframe(squad_df.head(10))
 
 if transfer_df is not None:
-    metrics_options = list(transfer_df.columns)
-    metrics_options = [col for col in metrics_options if transfer_df[col].dtype in [float, int]]
-    selected_metric = st.selectbox("Select metric to filter by", options=metrics_options)
+    st.subheader("💰 Transfer Market Data Preview")
+    st.dataframe(transfer_df.head(10))
 
-    if selected_metric:
-        min_val = float(transfer_df[selected_metric].min())
-        max_val = float(transfer_df[selected_metric].max())
-        val_range = st.slider(f"Filter {selected_metric} range", min_value=min_val, max_value=max_val,
-                              value=(min_val, max_val))
+# --- Player search & radar ---
+if squad_df is not None:
+    st.subheader("🔍 Search Squad Players")
+    player_names = squad_df["Name"].dropna().unique().tolist()
+    selected_player = st.selectbox("Select a player to view details and radar chart", player_names)
+    if selected_player:
+        display_player_details(squad_df, selected_player)
 
-        filtered_transfer = transfer_df[
-            (transfer_df[selected_metric] >= val_range[0]) & (transfer_df[selected_metric] <= val_range[1])
-        ]
+# --- Transfer search ---
+if transfer_df is not None:
+    st.subheader("🔍 Search Transfer Market Players")
+    transfer_player_names = transfer_df["Name"].dropna().unique().tolist()
+    selected_transfer_player = st.selectbox("Select a transfer target", transfer_player_names, key="transfer_select")
+    if selected_transfer_player:
+        display_player_details(transfer_df, selected_transfer_player)
 
-        st.write(f"Players matching criteria: {len(filtered_transfer)}")
-        st.dataframe(filtered_transfer)
+# --- Ask AI questions ---
+st.subheader("🤖 Ask AI about your Squad or Transfers")
+user_question = st.text_area("Enter your question here (e.g. \"Who is my best striker?\")")
 
-else:
-    st.info("Upload transfer market data to use search functionality.")
+if user_question:
+    if squad_df is None and transfer_df is None:
+        st.warning("Please upload at least one HTML file to ask questions.")
+    else:
+        try:
+            # Prepare combined data for prompt
+            combined_df = pd.DataFrame()
+            if squad_df is not None:
+                combined_df = pd.concat([combined_df, squad_df], ignore_index=True)
+            if transfer_df is not None:
+                combined_df = pd.concat([combined_df, transfer_df], ignore_index=True)
 
-# --- AI Chat for questions about squad or transfer ---
+            # Create a brief textual summary of players
+            summary_lines = []
+            for _, row in combined_df.iterrows():
+                name = row.get("Name", "Unknown")
+                pos = row.get("Normalized Position", "Unknown")
+                goals = row.get("Goals", "N/A")
+                assists = row.get("Assists", "N/A")
+                summary_lines.append(f"{name} ({pos}): Goals {goals}, Assists {assists}")
 
-st.markdown("---")
-st.subheader("🤖 Ask AI about your Squad or Transfer Market")
+            summary_text = "\n".join(summary_lines)
+            prompt = (
+                f"You are a Football Manager 2024 assistant. Based on the following player data:\n"
+                f"{summary_text}\n\n"
+                f"Answer the user's question:\n{user_question}\n"
+            )
 
-user_question = st.text_area("Enter your question about your squad or transfer data:")
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,
+                max_tokens=300,
+            )
+            answer = response.choices[0].message.content
+            st.markdown(f"**AI Answer:** {answer}")
 
-def generate_ai_answer(question, squad_df=None, transfer_df=None):
-    prompt = f"You are a Football Manager 2024 assistant analyzing player data.\n"
-    if squad_df is not None:
-        prompt += f"Squad Data Sample:\n{ squad_df.head(5).to_dict(orient='records') }\n"
-    if transfer_df is not None:
-        prompt += f"Transfer Market Data Sample:\n{ transfer_df.head(5).to_dict(orient='records') }\n"
-    prompt += f"Answer this question based on the above data:\n{question}"
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400,
-            temperature=0.5,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error communicating with AI: {e}"
-
-if st.button("Ask AI") and user_question.strip():
-    answer = generate_ai_answer(user_question, squad_df, transfer_df)
-    st.markdown("**AI Answer:**")
-    st.write(answer)
+        except Exception as e:
+            st
