@@ -54,27 +54,32 @@ if uploaded_file is not None:
   user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
 
 if st.button("Analyze with ChatGPT") and api_key and user_query:
-  with st.spinner("Thinking..."):
-    try:
-      prompt = f"""
-      You are an assistant analyzing a Football Manager 2024 squad.
-      Here are the player stats:
+    with st.spinner("Thinking..."):
+        try:
+            prompt = f"""
+            You are an assistant analyzing a Football Manager 2024 squad.
+            Here are the player stats:
 
-      {df.to_markdown(index=False)}
+            {df.to_markdown(index=False)}
 
-    Answer the user's question based on these stats:
-    """
-  def answer_user_question():
-    try:
-        full_prompt = prompt + user_query
-    except Exception as e:
-        print(f"Error: {e}")
+            Answer the user's question based on these stats:
+            """
 
-    response = openai.ChatCompletion.create(
-    model="gpt-4",
-    messages=[
-    {"role": "system", "content": "You are a tactical football analyst."},
-    {"role": "user", "content": full_prompt}
+            full_prompt = prompt + user_query
+
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a tactical football analyst."},
+                    {"role": "user", "content": full_prompt}
+                ]
+            )
+
+            st.markdown("### ChatGPT's Analysis")
+            st.write(response['choices'][0]['message']['content'])
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
   ],
     temperature=0.7,
     max_tokens=800
