@@ -147,7 +147,7 @@ header_mapping = {
 
 # --- Robust HTML parser function ---
 
-    def parse_html(file) -> pd.DataFrame | None:
+def parse_html(file) -> pd.DataFrame | None:
     try:
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, 'html.parser')
