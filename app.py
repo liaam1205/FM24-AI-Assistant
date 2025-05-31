@@ -5,6 +5,14 @@ import openai
 import matplotlib.pyplot as plt
 import numpy as np
 
+def print_duplicate_columns(df):
+    cols = df.columns.tolist()
+    duplicates = set([x for x in cols if cols.count(x) > 1])
+    if duplicates:
+        print(f"Duplicate columns found: {duplicates}")
+    else:
+        print("No duplicate columns found.")
+
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
