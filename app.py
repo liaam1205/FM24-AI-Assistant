@@ -400,7 +400,6 @@ if transfer_df is not None:
 
     # Default filtered is the whole transfer_df sorted
     filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
-    st.dataframe(filtered)
 
     transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
     if transfer_search:
@@ -409,5 +408,7 @@ if transfer_df is not None:
             filtered["Club"].str.contains(transfer_search, case=False, na=False)
         ]
 
-        filtered.columns = make_unique_columns(list(filtered.columns))
-        st.dataframe(filtered)
+    # Fix duplicate columns for *all* filtered DataFrames before showing
+    filtered.columns = make_unique_columns(list(filtered.columns))
+    
+    st.dataframe(filtered)
