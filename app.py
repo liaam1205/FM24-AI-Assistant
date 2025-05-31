@@ -24,20 +24,20 @@ def parse_html_to_df(file):
 seen = {}
 unique_headers = []
 for col in headers:
-if col in seen:
+  if col in seen:
   seen[col] += 1
   unique_headers.append(f"{col}_{seen[col]}")
-else:
-seen[col] = 0
-unique_headers.append(col)
+  else:
+  seen[col] = 0
+  unique_headers.append(col)
 
 rows = []
 for row in table.find_all("tr")[1:]:
-cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
-if len(cols) == len(unique_headers):
+  cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
+  if len(cols) == len(unique_headers):
   rows.append(cols)
-else:
-st.warning(f"Skipping row due to column mismatch: {cols}")
+  else:
+  st.warning(f"Skipping row due to column mismatch: {cols}")
 
 df = pd.DataFrame(rows, columns=unique_headers)
 return df
