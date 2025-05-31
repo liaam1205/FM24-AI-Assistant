@@ -116,10 +116,13 @@ position_metrics = {
 
 # --- Header mapping based on your mapping for consistent column names ---
 header_mapping = {
+    "Inf": "Information",
     "Name": "Name",
     "Club": "Club",
     "Position": "Position",
     "Age": "Age",
+    "Potential": "Potential",
+    "Ability": "Potential",
     "CA": "Current Ability",
     "PA": "Potential Ability",
     "Transfer Value": "Transfer Value",
