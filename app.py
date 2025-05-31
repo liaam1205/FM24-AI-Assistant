@@ -277,4 +277,60 @@ def get_ai_scout_report(player_name, player_data):
 
 # --- Main UI ---
 
-col1, col2 =
+col1, col2 = st.columns(2)
+
+with col1:
+    st.header("Upload Squad HTML Export")
+    squad_file = st.file_uploader("Upload Squad HTML", type=["html"])
+    squad_df = None
+    if squad_file is not None:
+        squad_df = parse_html(squad_file)
+        if squad_df is not None:
+            st.success(f"Loaded squad with {len(squad_df)} players")
+            st.dataframe(squad_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]])
+
+            # Player selection
+            player_selected = st.selectbox("Select Player for Detailed View", squad_df["Name"].sort_values())
+            if player_selected:
+                display_player_details(squad_df, player_selected)
+
+                # AI scouting report
+                if st.button("Generate AI Scouting Report"):
+                    player_data = squad_df[squad_df["Name"] == player_selected].iloc[0].to_dict()
+                    report = get_ai_scout_report(player_selected, player_data)
+                    st.markdown("### AI Scouting Report")
+                    st.write(report)
+
+with col2:
+    st.header("Upload Transfer Market HTML Export")
+    transfer_file = st.file_uploader("Upload Transfer Market HTML", type=["html"])
+    transfer_df = None
+    if transfer_file is not None:
+        transfer_df = parse_html(transfer_file)
+        if transfer_df is not None:
+            st.success(f"Loaded {len(transfer_df)} transfer market players")
+            st.dataframe(transfer_df[["Name", "Club", "Position", "Age", "Transfer Value", "Wage"]])
+
+            # Search filter for transfers
+            pos_filter = st.selectbox("Filter by Position", options=["All"] + list(position_metrics.keys()))
+            if pos_filter != "All":
+                filtered_df = transfer_df[transfer_df["Normalized Position"] == pos_filter]
+            else:
+                filtered_df = transfer_df
+
+            search_name = st.text_input("Search Player by Name")
+            if search_name:
+                filtered_df = filtered_df[filtered_df["Name"].str.contains(search_name, case=False, na=False)]
+
+            st.dataframe(filtered_df[["Name", "Club", "Position", "Age", "Transfer Value", "Wage"]])
+
+            # Transfer player details and radar
+            transfer_selected = st.selectbox("Select Transfer Player for Details", filtered_df["Name"].sort_values())
+            if transfer_selected:
+                display_player_details(filtered_df, transfer_selected)
+
+                if st.button("Generate AI Scouting Report (Transfer Player)"):
+                    player_data = filtered_df[filtered_df["Name"] == transfer_selected].iloc[0].to_dict()
+                    report = get_ai_scout_report(transfer_selected, player_data)
+                    st.markdown("### AI Scouting Report")
+                    st.write(report)
