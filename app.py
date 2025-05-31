@@ -3,23 +3,24 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import openai
 import matplotlib
-matplotlib.use("Agg")  # Use non-GUI backend for compatibility
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
 # --- App Config ---
-st.set_page_config(page_title="FM24 Squad Analyzer", layout="wide")
-st.title("📊 Football Manager 2024 Squad Analyzer")
-st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered insights and visualizations.")
+st.set_page_config(page_title="FM24 Squad & Market Analyzer", layout="wide")
+st.title("📊 FM24 Squad & Transfer Market Analyzer")
 
 # --- API Key ---
 api_key = st.secrets["API_KEY"]
 client = openai.OpenAI(api_key=api_key)
 
-# --- File Upload ---
-uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
+# --- Upload Squad and Market Files ---
+st.sidebar.header("📁 Upload Files")
+squad_file = st.sidebar.file_uploader("Upload Squad Export (.html)", type=["html"], key="squad")
+market_file = st.sidebar.file_uploader("Upload Transfer Market Export (.html)", type=["html"], key="market")
 
-# --- Helper: Parse HTML to DataFrame ---
+# --- HTML Parser ---
 def parse_html_to_df(file):
     soup = BeautifulSoup(file, "html.parser")
     table = soup.find("table")
@@ -40,13 +41,10 @@ def parse_html_to_df(file):
         cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
         if len(cols) == len(unique_headers):
             rows.append(cols)
-        else:
-            st.warning(f"Skipping row due to column mismatch: {cols}")
-
     df = pd.DataFrame(rows, columns=unique_headers)
     return df
 
-# --- Helper: Radar Chart ---
+# --- Pizza Chart ---
 def plot_pizza_chart(player_name, player_row, stat_cols):
     try:
         stats = player_row[stat_cols].astype(float).values
@@ -54,92 +52,94 @@ def plot_pizza_chart(player_name, player_row, stat_cols):
         stats = [float(str(x).replace("%", "").strip()) if str(x).replace(".", "", 1).replace("%", "").isdigit() else 0 for x in player_row[stat_cols]]
         stats = np.array(stats)
 
-    # Normalize to 0–100 for better comparison
     max_val = np.max(stats)
     stats = stats / max_val * 100 if max_val > 0 else stats
 
     angles = np.linspace(0, 2 * np.pi, len(stats), endpoint=False).tolist()
-    stats = np.concatenate((stats, [stats[0]]))  # close loop
+    stats = np.concatenate((stats, [stats[0]]))
     angles += angles[:1]
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-    ax.plot(angles, stats, color="blue", linewidth=2)
-    ax.fill(angles, stats, color="blue", alpha=0.25)
+    ax.plot(angles, stats, color="green", linewidth=2)
+    ax.fill(angles, stats, color="green", alpha=0.3)
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(stat_cols, fontsize=10)
     ax.set_title(f"{player_name} — Performance Radar", size=14)
     ax.grid(True)
-
     return fig
 
-# --- Main Logic ---
-if uploaded_file is not None:
-    st.success("✅ File uploaded successfully!")
-    df = parse_html_to_df(uploaded_file)
+# --- Data Processing ---
+squad_df = parse_html_to_df(squad_file) if squad_file else None
+market_df = parse_html_to_df(market_file) if market_file else None
 
-    st.subheader("📋 Raw Player Stats")
-    st.dataframe(df, use_container_width=True)
+if squad_df is not None:
+    st.subheader("🏠 Your Squad")
+    st.dataframe(squad_df, use_container_width=True)
 
-    # --- AI Query ---
-    st.subheader("🤖 Ask the AI About Your Squad")
-    user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
+if market_df is not None:
+    st.subheader("🛒 Transfer Market")
+    st.dataframe(market_df, use_container_width=True)
 
-    if st.button("Analyze with ChatGPT") and user_query:
-        with st.spinner("Thinking..."):
-            try:
-                trimmed_df = df.head(50)  # Limit to avoid token overflow
-                prompt = f"""
-You are an assistant analyzing a Football Manager 2024 squad.
-Here are the player stats (first 50 rows):
+# --- AI Insights ---
+st.subheader("🤖 AI Analysis")
+user_query = st.text_area("Ask a question (e.g., 'Best midfielders on the market', 'Compare my CBs with available ones')")
 
-{trimmed_df.to_markdown(index=False)}
+if st.button("Analyze with ChatGPT") and user_query:
+    with st.spinner("Thinking..."):
+        try:
+            prompt = "You are an assistant analyzing a Football Manager 2024 squad and transfer market.\n\n"
 
-Answer the user's question based on these stats:
-"""
-                full_prompt = prompt + "\n\nUser question: " + user_query
+            if squad_df is not None:
+                prompt += "Current Squad (top 50 rows):\n"
+                prompt += squad_df.head(50).to_markdown(index=False)
+                prompt += "\n\n"
 
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a tactical football analyst."},
-                        {"role": "user", "content": full_prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=800
-                )
+            if market_df is not None:
+                prompt += "Transfer Market (top 50 rows):\n"
+                prompt += market_df.head(50).to_markdown(index=False)
+                prompt += "\n\n"
 
-                answer = response.choices[0].message.content
-                st.markdown("### 🧠 ChatGPT's Insights")
-                st.markdown(answer)
+            prompt += f"User question: {user_query}"
 
-            except Exception as e:
-                st.error(f"⚠️ ChatGPT API call failed: {e}")
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a tactical football analyst."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            st.markdown("### 💡 ChatGPT's Answer")
+            st.markdown(response.choices[0].message.content)
+        except Exception as e:
+            st.error(f"❌ ChatGPT API call failed: {e}")
 
-    # --- Player Insights ---
-    st.subheader("📈 Player Insights")
+# --- Player Radar View ---
+st.subheader("📈 Player Stat Radar")
 
-    if "Name" in df.columns:
-        selected_player = st.selectbox("Select a player to view detailed stats", df["Name"].unique())
-        player_data = df[df["Name"] == selected_player]
+player_source = st.radio("Select from:", ["Squad", "Transfer Market"])
+player_df = squad_df if player_source == "Squad" else market_df
 
-        if not player_data.empty:
-            st.markdown("### 🔍 Detailed Stats")
-            st.dataframe(player_data.T, use_container_width=True)
+if player_df is not None and "Name" in player_df.columns:
+    selected_player = st.selectbox("Choose a player", player_df["Name"].unique())
+    player_data = player_df[player_df["Name"] == selected_player]
 
-            radar_stat_cols = [
-                "xG", "xA", "Goals", "Assists", "KeyPasses",
-                "DribblesCompleted", "ShotsOnTarget%", "PassAccuracy",
-                "Tackles", "Interceptions"
-            ]
-            radar_stat_cols = [col for col in radar_stat_cols if col in player_data.columns]
+    if not player_data.empty:
+        st.markdown("### 📊 Detailed Stats")
+        st.dataframe(player_data.T, use_container_width=True)
 
-            if len(radar_stat_cols) >= 3:
-                fig = plot_pizza_chart(selected_player, player_data.iloc[0], radar_stat_cols)
-                st.pyplot(fig)
-            else:
-                st.info("⚠️ Not enough stats available for a radar chart.")
-    else:
-        st.warning("⚠️ No 'Name' column found. Make sure your FM24 export includes player names.")
+        radar_stats = [
+            "xG", "xA", "Goals", "Assists", "KeyPasses",
+            "DribblesCompleted", "ShotsOnTarget%", "PassAccuracy",
+            "Tackles", "Interceptions"
+        ]
+        radar_cols = [col for col in radar_stats if col in player_data.columns]
 
+        if len(radar_cols) >= 3:
+            fig = plot_pizza_chart(selected_player, player_data.iloc[0], radar_cols)
+            st.pyplot(fig)
+        else:
+            st.info("⚠️ Not enough metrics for radar chart.")
 else:
-    st.info("📁 Please upload your FM24 HTML export to begin.")
+    st.info("Please upload a valid file with 'Name' column.")
