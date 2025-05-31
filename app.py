@@ -64,16 +64,21 @@ Here are the player stats:
 
 Answer the user's question based on these stats:
 """
-            full_prompt = prompt + user_query
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a tactical football analyst."},
-                    {"role": "user", "content": full_prompt}
-                ],
-                temperature=0.7,
-                max_tokens=800
-            )
+              response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a tactical football analyst."},
+            {"role": "user", "content": full_prompt}
+        ],
+        temperature=0.7,
+        max_tokens=800
+    )
+    answer = response["choices"][0]["message"]["content"]
+    st.markdown("### 🧠 ChatGPT's Insights")
+    st.markdown(answer)
+except Exception as e:
+    st.error(f"⚠️ ChatGPT API call failed: {e}")
+
             answer = response["choices"][0]["message"]["content"]
             st.markdown("### 🧠 ChatGPT's Insights")
             st.markdown(answer)
