@@ -2,24 +2,27 @@ import streamlit as st
 import pandas as pd
 from bs4 import BeautifulSoup
 import openai
-import re
+import matplotlib.pyplot as plt
+import numpy as np
 
 # --- App Config ---
-st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
-st.title("📊 Football Manager 2024 Squad & Transfer Market Analyzer")
-st.markdown("Upload your FM24 squad and transfer market exports (.html or .csv), browse players with filters, and get AI-powered insights.")
+st.set_page_config(page_title="FM24 Squad Analyzer", layout="wide")
+st.title("📊 Football Manager 2024 Squad Analyzer")
+st.markdown("Upload your exported FM24 squad stats (.html), and get AI-powered insights and visualizations.")
 
 # --- API Key ---
 api_key = st.secrets["API_KEY"]
 client = openai.OpenAI(api_key=api_key)
 
-# --- Helper: Parse FM24 HTML table exports ---
+# --- File Upload ---
+uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
+
+# --- Helper: Parse HTML to DataFrame ---
 def parse_html_to_df(file):
     soup = BeautifulSoup(file, "html.parser")
     table = soup.find("table")
     headers = [th.get_text(strip=True) for th in table.find_all("th")]
 
-    # Make column headers unique
     seen = {}
     unique_headers = []
     for col in headers:
@@ -41,184 +44,100 @@ def parse_html_to_df(file):
     df = pd.DataFrame(rows, columns=unique_headers)
     return df
 
-# --- Helper: Convert monetary strings like '€10M', '£500K' to numeric ---
-def money_to_float(money_str):
-    if pd.isna(money_str):
-        return None
-    money_str = money_str.strip()
-    if money_str == "":
-        return None
-    # Remove currency symbols
-    money_str = re.sub(r"[^\d\.KMk]", "", money_str)
-    multiplier = 1
-    if money_str.endswith("M") or money_str.endswith("m"):
-        multiplier = 1_000_000
-        money_str = money_str[:-1]
-    elif money_str.endswith("K") or money_str.endswith("k"):
-        multiplier = 1_000
-        money_str = money_str[:-1]
+# --- Helper: Radar Chart ---
+def plot_pizza_chart(player_name, player_row, stat_cols):
     try:
-        return float(money_str) * multiplier
+        stats = player_row[stat_cols].astype(float).values
     except:
-        return None
+        stats = [float(str(x).replace("%", "").strip()) if str(x).replace(".", "", 1).replace("%", "").isdigit() else 0 for x in player_row[stat_cols]]
+        stats = np.array(stats)
 
-# --- Squad File Upload ---
-st.header("1️⃣ Upload Your Squad Export")
-uploaded_squad_file = st.file_uploader("Upload your FM24 squad HTML export", type=["html"], key="squad")
+    # Normalize to 0–100 for better comparison
+    max_val = np.max(stats)
+    stats = stats / max_val * 100 if max_val > 0 else stats
 
-df_squad = None
-if uploaded_squad_file is not None:
-    st.success("✅ Squad file uploaded successfully!")
-    df_squad = parse_html_to_df(uploaded_squad_file)
-    st.subheader("📋 Raw Squad Player Stats")
-    st.dataframe(df_squad, use_container_width=True)
+    angles = np.linspace(0, 2 * np.pi, len(stats), endpoint=False).tolist()
+    stats = np.concatenate((stats, [stats[0]]))  # close loop
+    angles += angles[:1]
 
-# --- Transfer Market File Upload ---
-st.header("2️⃣ Upload Transfer Market Data")
-uploaded_transfer_file = st.file_uploader("Upload Transfer Market data (HTML or CSV)", type=["html", "csv"], key="transfer")
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.plot(angles, stats, color="blue", linewidth=2)
+    ax.fill(angles, stats, color="blue", alpha=0.25)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(stat_cols, fontsize=10)
+    ax.set_title(f"{player_name} — Performance Radar", size=14)
+    ax.grid(True)
 
-df_transfer = None
-if uploaded_transfer_file is not None:
-    if uploaded_transfer_file.type == "text/csv":
-        df_transfer = pd.read_csv(uploaded_transfer_file)
-    else:
-        df_transfer = parse_html_to_df(uploaded_transfer_file)
-    st.success("✅ Transfer market file uploaded successfully!")
-    st.subheader("📋 Transfer Market Players")
-    st.dataframe(df_transfer, use_container_width=True)
+    return fig
 
-    # --- Clean numeric columns in transfer market for filtering ---
-    # Convert Value and Wage columns if they exist
-    for col in ["Value", "Wage"]:
-        if col in df_transfer.columns:
-            df_transfer[col + "_num"] = df_transfer[col].apply(money_to_float)
+# --- Main Logic ---
+if uploaded_file is not None:
+    st.success("✅ File uploaded successfully!")
+    df = parse_html_to_df(uploaded_file)
 
-    # Convert Age, Overall, Potential to numeric if they exist
-    for col in ["Age", "Overall", "Potential"]:
-        if col in df_transfer.columns:
-            df_transfer[col] = pd.to_numeric(df_transfer[col], errors='coerce')
+    st.subheader("📋 Raw Player Stats")
+    st.dataframe(df, use_container_width=True)
 
-    # -------------------------------
-    # Player Search & Filtering Section
-    # -------------------------------
-    st.header("🔍 Player Search & Filtering")
+    # --- AI Query ---
+    st.subheader("🤖 Ask the AI About Your Squad")
+    user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
 
-    # Define filters for columns present in df_transfer
-    filter_columns = {
-        "Position": None,
-        "Age": (15, 45),
-        "Value_num": (0, int(df_transfer["Value_num"].max() if "Value_num" in df_transfer.columns else 100000000)),
-        "Wage_num": (0, int(df_transfer["Wage_num"].max() if "Wage_num" in df_transfer.columns else 100000)),
-        "Overall": (0, 100),
-        "Potential": (0, 100),
-    }
-
-    available_filters = {k: v for k, v in filter_columns.items() if k in df_transfer.columns}
-
-    filtered_df = df_transfer.copy()
-
-    for col, range_vals in available_filters.items():
-        if range_vals is None:
-            options = sorted(filtered_df[col].dropna().unique())
-            selected = st.multiselect(f"Filter by {col}", options, default=options)
-            filtered_df = filtered_df[filtered_df[col].isin(selected)]
-        else:
-            min_val = int(filtered_df[col].min()) if pd.notna(filtered_df[col].min()) else range_vals[0]
-            max_val = int(filtered_df[col].max()) if pd.notna(filtered_df[col].max()) else range_vals[1]
-
-            slider_vals = st.slider(
-                f"Filter by {col.replace('_num','').capitalize()}",
-                min_value=range_vals[0],
-                max_value=range_vals[1],
-                value=(min_val, max_val)
-            )
-            filtered_df = filtered_df[(filtered_df[col] >= slider_vals[0]) & (filtered_df[col] <= slider_vals[1])]
-
-    st.markdown(f"### Showing {len(filtered_df)} players after filtering")
-
-    # Drop the helper numeric columns for display (like Value_num)
-    display_cols = [col for col in filtered_df.columns if not col.endswith("_num")]
-    st.dataframe(filtered_df[display_cols], use_container_width=True)
-
-# --- AI Analysis Section ---
-st.header("3️⃣ AI-Powered Analysis")
-
-# User input for squad questions
-if df_squad is not None:
-    st.subheader("Ask AI About Your Squad")
-    user_query = st.text_area("Ask a question about your squad (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
-
-    if st.button("Analyze Squad with ChatGPT") and user_query:
-        with st.spinner("Analyzing squad..."):
+    if st.button("Analyze with ChatGPT") and user_query:
+        with st.spinner("Thinking..."):
             try:
+                trimmed_df = df.head(50)  # Limit to avoid token overflow
                 prompt = f"""
-You are a tactical football analyst analyzing a Football Manager 2024 squad.
+You are an assistant analyzing a Football Manager 2024 squad.
+Here are the player stats (first 50 rows):
 
-Here are the player stats:
-
-{df_squad.to_markdown(index=False)}
+{trimmed_df.to_markdown(index=False)}
 
 Answer the user's question based on these stats:
-
-User question: {user_query}
 """
+                full_prompt = prompt + "\n\nUser question: " + user_query
 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "You are a tactical football analyst."},
-                        {"role": "user", "content": prompt}
+                        {"role": "user", "content": full_prompt}
                     ],
                     temperature=0.7,
                     max_tokens=800
                 )
 
                 answer = response.choices[0].message.content
-                st.markdown("### 🧠 ChatGPT's Squad Insights")
+                st.markdown("### 🧠 ChatGPT's Insights")
                 st.markdown(answer)
 
             except Exception as e:
                 st.error(f"⚠️ ChatGPT API call failed: {e}")
 
-# User input for transfer market questions / recommendations
-if df_squad is not None and df_transfer is not None:
-    st.subheader("Ask AI About Transfer Market or Get Recommendations")
-    transfer_query = st.text_area("Ask about potential recruitments or leave blank for AI suggestions")
+    # --- Player Insights ---
+    st.subheader("📈 Player Insights")
 
-    if st.button("Analyze Transfer Market with ChatGPT"):
-        with st.spinner("Analyzing transfer market..."):
-            try:
-                prompt = f"""
-You are a Football Manager 2024 recruitment analyst.
+    if "Name" in df.columns:
+        selected_player = st.selectbox("Select a player to view detailed stats", df["Name"].unique())
+        player_data = df[df["Name"] == selected_player]
 
-Current squad:
-{df_squad.to_markdown(index=False)}
+        if not player_data.empty:
+            st.markdown("### 🔍 Detailed Stats")
+            st.dataframe(player_data.T, use_container_width=True)
 
-Transfer market players:
-{df_transfer.to_markdown(index=False)}
+            radar_stat_cols = [
+                "xG", "xA", "Goals", "Assists", "KeyPasses",
+                "DribblesCompleted", "ShotsOnTarget%", "PassAccuracy",
+                "Tackles", "Interceptions"
+            ]
+            radar_stat_cols = [col for col in radar_stat_cols if col in player_data.columns]
 
-{transfer_query if transfer_query.strip() else "Recommend 3 players from the transfer market who would best strengthen the current squad."}
-"""
+            if len(radar_stat_cols) >= 3:
+                fig = plot_pizza_chart(selected_player, player_data.iloc[0], radar_stat_cols)
+                st.pyplot(fig)
+            else:
+                st.info("⚠️ Not enough stats available for a radar chart.")
+    else:
+        st.warning("⚠️ No 'Name' column found. Make sure your FM24 export includes player names.")
 
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a tactical football recruitment analyst."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=800
-                )
-
-                answer = response.choices[0].message.content
-                st.markdown("### 🧠 ChatGPT's Transfer Market Recommendations")
-                st.markdown(answer)
-
-            except Exception as e:
-                st.error(f"⚠️ ChatGPT API call failed: {e}")
-
-if df_squad is None:
-    st.info("📁 Please upload your FM24 squad HTML export to begin.")
-
-if df_squad is not None and df_transfer is None:
-    st.info("📁 Upload transfer market data (HTML or CSV) to analyze recruitment options.")
+else:
+    st.info("📁 Please upload your FM24 HTML export to begin.")
