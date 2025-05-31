@@ -20,16 +20,27 @@ def parse_html_to_df(file):
     soup = BeautifulSoup(file, "html.parser")
     table = soup.find("table")
     headers = [th.get_text(strip=True) for th in table.find_all("th")]
-    rows = []
 
+    # Fix duplicate column names
+    seen = {}
+    unique_headers = []
+    for col in headers:
+        if col in seen:
+            seen[col] += 1
+            unique_headers.append(f"{col}_{seen[col]}")
+        else:
+            seen[col] = 0
+            unique_headers.append(col)
+
+    rows = []
     for row in table.find_all("tr")[1:]:
         cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
-        if len(cols) == len(headers):
+        if len(cols) == len(unique_headers):
             rows.append(cols)
         else:
             st.warning(f"Skipping row due to column mismatch: {cols}")
 
-    df = pd.DataFrame(rows, columns=headers)
+    df = pd.DataFrame(rows, columns=unique_headers)
     return df
 
 # --- Display and Analyze ---
