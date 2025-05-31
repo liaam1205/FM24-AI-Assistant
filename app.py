@@ -39,11 +39,13 @@ position_aliases = {
 def normalize_position(pos_str):
     if not isinstance(pos_str, str):
         return "Unknown"
-    for key, role in position_aliases.items():
-        if key in pos_str:
-            return role
+    positions = [p.strip() for p in pos_str.split(",")]
+    for pos in positions:
+        if pos in position_aliases:
+            return position_aliases[pos]
     return "Unknown"
 
+# --- Position-based metrics for radar charts ---
 position_metrics = {
     "Goalkeeper": ["Pass Completion Ratio", "Save Ratio", "Clean Sheets", "Saves Held", "Saves Parried", "Saves Tipped"],
     "Centre Back": ["Assists", "Goals", "Headers Won", "Tackle Completion Ratio", "Interceptions", "Pass Completion Ratio"],
@@ -53,47 +55,40 @@ position_metrics = {
     "Attacking Midfielder": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Expected Assists", "Key Passes"],
     "Wide Midfielder": ["Assists", "Goals", "Dribbles Made", "Key Passes", "Pass Completion Ratio", "Expected Goals per 90 Minutes"],
     "Winger": ["Assists", "Goals", "Dribbles Made", "Key Passes", "Pass Completion Ratio", "Expected Goals per 90 Minutes"],
+    "Inside Forward": ["Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
     "Striker": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Conversion %", "Key Passes"],
     "Unknown": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Expected Assists", "Key Passes"]
 }
 
-def parse_html_to_df(file):
-    soup = BeautifulSoup(file, "html.parser")
-    table = soup.find("table")
-    headers = [th.get_text(strip=True) for th in table.find_all("th")]
-    seen = {}
-    unique_headers = []
-    for col in headers:
-        if col in seen:
-            seen[col] += 1
-            unique_headers.append(f"{col}_{seen[col]}")
-        else:
-            seen[col] = 0
-            unique_headers.append(col)
-    rows = []
-    for row in table.find_all("tr")[1:]:
-        cols = [td.get_text(strip=True).replace("-", "") for td in row.find_all("td")]
-        if len(cols) == len(unique_headers):
-            rows.append(cols)
-    df = pd.DataFrame(rows, columns=unique_headers)
-    return df
+def plot_radar_chart(player_row, position):
+    metrics = position_metrics.get(position, position_metrics["Unknown"])
+    values = []
+    labels = []
 
-def radar_chart(player_data, metrics):
-    try:
-        values = [float(player_data.get(metric, 0) or 0) for metric in metrics]
-        if len(values) < 3:
-            st.warning("⚠️ Not enough metrics for radar chart.")
-            return
-        angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
-        values += values[:1]
-        angles += angles[:1]
-        fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-        ax.plot(angles, values, color="blue", linewidth=2)
-        ax.fill(angles, values, color="blue", alpha=0.25)
-        ax.set_yticklabels([])
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(metrics, fontsize=10)
-        st.pyplot(fig)
+    for metric in metrics:
+        try:
+            val = float(player_row.get(metric, 0))
+            values.append(val)
+            labels.append(metric)
+        except (ValueError, TypeError):
+            pass
+
+    if len(values) < 3:
+        st.warning("⚠️ Not enough metrics for radar chart.")
+        return
+
+    angles = np.linspace(0, 2 * np.pi, len(values), endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='green', linewidth=2)
+    ax.fill(angles, values, color='green', alpha=0.25)
+    ax.set_yticklabels([])
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=8)
+    ax.set_title("Radar Chart", size=12, color='black')
+    st.pyplot(fig)
     except Exception as e:
         st.warning(f"Radar chart error: {e}")
 
