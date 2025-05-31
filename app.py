@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import openai
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -35,8 +34,10 @@ position_aliases = {
     "AM (C)": "Attacking Midfielder",
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (L)": "Winger",
-    "AM (R)": "Winger",
+    "AM (L)": "Inside Forward",
+    "AM (R)": "Inside Forward",
+    "W (L)": "Winger",
+    "W (R)": "Winger",
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -143,8 +144,7 @@ def parse_html_to_df(html_file):
 
         # Convert numeric columns where possible
         for col in df.columns:
-            if df[col].dtype == 'object':
-                df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", ""), errors='coerce')
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace("%", "").str.replace(",", ""), errors='coerce')
 
         # Normalize positions
         if "Position" in df.columns:
@@ -169,7 +169,8 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val = 0
         values.append(float(val))
 
-    values += values[:1]  # close the loop
+    # close the loop
+    values += values[:1]
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
@@ -228,4 +229,83 @@ transfer_df = None
 
 if squad_file is not None:
     squad_df = parse_html_to_df(squad_file)
-    if squad_df is not None
+    if squad_df is not None:
+        st.success(f"Squad data loaded: {len(squad_df)} players")
+        st.dataframe(squad_df)
+
+if transfer_file is not None:
+    transfer_df = parse_html_to_df(transfer_file)
+    if transfer_df is not None:
+        st.success(f"Transfer market data loaded: {len(transfer_df)} players")
+        st.dataframe(transfer_df)
+
+# --- Player search and display ---
+
+st.markdown("---")
+st.subheader("🔍 Search Player Details & Radar Chart")
+
+player_name_input = st.text_input("Enter player name to display details (case sensitive):")
+
+if player_name_input:
+    df_to_search = squad_df if squad_df is not None else transfer_df
+    if df_to_search is None:
+        st.warning("Please upload at least one dataset to search players.")
+    else:
+        display_player_details(df_to_search, player_name_input)
+
+# --- Transfer market search by criteria ---
+
+st.markdown("---")
+st.subheader("📊 Transfer Market Search by Criteria")
+
+if transfer_df is not None:
+    metrics_options = list(transfer_df.columns)
+    metrics_options = [col for col in metrics_options if transfer_df[col].dtype in [float, int]]
+    selected_metric = st.selectbox("Select metric to filter by", options=metrics_options)
+
+    if selected_metric:
+        min_val = float(transfer_df[selected_metric].min())
+        max_val = float(transfer_df[selected_metric].max())
+        val_range = st.slider(f"Filter {selected_metric} range", min_value=min_val, max_value=max_val,
+                              value=(min_val, max_val))
+
+        filtered_transfer = transfer_df[
+            (transfer_df[selected_metric] >= val_range[0]) & (transfer_df[selected_metric] <= val_range[1])
+        ]
+
+        st.write(f"Players matching criteria: {len(filtered_transfer)}")
+        st.dataframe(filtered_transfer)
+
+else:
+    st.info("Upload transfer market data to use search functionality.")
+
+# --- AI Chat for questions about squad or transfer ---
+
+st.markdown("---")
+st.subheader("🤖 Ask AI about your Squad or Transfer Market")
+
+user_question = st.text_area("Enter your question about your squad or transfer data:")
+
+def generate_ai_answer(question, squad_df=None, transfer_df=None):
+    prompt = f"You are a Football Manager 2024 assistant analyzing player data.\n"
+    if squad_df is not None:
+        prompt += f"Squad Data Sample:\n{ squad_df.head(5).to_dict(orient='records') }\n"
+    if transfer_df is not None:
+        prompt += f"Transfer Market Data Sample:\n{ transfer_df.head(5).to_dict(orient='records') }\n"
+    prompt += f"Answer this question based on the above data:\n{question}"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.5,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error communicating with AI: {e}"
+
+if st.button("Ask AI") and user_question.strip():
+    answer = generate_ai_answer(user_question, squad_df, transfer_df)
+    st.markdown("**AI Answer:**")
+    st.write(answer)
