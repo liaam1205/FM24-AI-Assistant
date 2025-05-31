@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from bs4 import BeautifulSoup
 import openai
+import matplotlib
+matplotlib.use("Agg")  # Use non-GUI backend for compatibility
 import matplotlib.pyplot as plt
 import numpy as np
 
