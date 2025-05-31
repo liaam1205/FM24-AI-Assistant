@@ -199,8 +199,9 @@ def parse_html(file) -> pd.DataFrame | None:
         df = pd.DataFrame(rows, columns=valid_headers)
 
         # Clean numeric columns: remove commas, %, convert to numeric
-        for col in df.columns:
-    if df[col].dtype == object:
+
+    for col in df.columns:
+        if df[col].dtype == object:
         # Remove commas and percent signs
         df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
         # Try converting to numeric
