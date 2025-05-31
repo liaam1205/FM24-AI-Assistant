@@ -53,33 +53,33 @@ if uploaded_file is not None:
   user_query = st.text_area("Ask a question (e.g., 'Who should I sell?', 'Top 3 midfielders?', 'Any weak defenders?')")
 
 if st.button("Analyze with ChatGPT") and api_key and user_query:
-with st.spinner("Thinking..."):
-try:
-prompt = f"""
-You are an assistant analyzing a Football Manager 2024 squad.
-Here are the player stats:
+  with st.spinner("Thinking..."):
+  try:
+  prompt = f"""
+  You are an assistant analyzing a Football Manager 2024 squad.
+  Here are the player stats:
 
-{df.to_markdown(index=False)}
+  {df.to_markdown(index=False)}
 
-Answer the user's question based on these stats:
-"""
-full_prompt = prompt + user_query
+  Answer the user's question based on these stats:
+  """
+  full_prompt = prompt + user_query
 
-response = openai.ChatCompletion.create(
-model="gpt-4",
-messages=[
-{"role": "system", "content": "You are a tactical football analyst."},
-{"role": "user", "content": full_prompt}
-],
-temperature=0.7,
-max_tokens=800
-)
-answer = response["choices"][0]["message"]["content"]
-st.markdown("### 🧠 ChatGPT's Insights")
-st.markdown(answer)
+  response = openai.ChatCompletion.create(
+  model="gpt-4",
+  messages=[
+  {"role": "system", "content": "You are a tactical football analyst."},
+  {"role": "user", "content": full_prompt}
+  ],
+  temperature=0.7,
+  max_tokens=800
+  )
+  answer = response["choices"][0]["message"]["content"]
+  st.markdown("### 🧠 ChatGPT's Insights")
+  st.markdown(answer)
 
 except Exception as e:
-st.error(f"⚠️ ChatGPT API call failed: {e}")
+  st.error(f"⚠️ ChatGPT API call failed: {e}")
 
 else:
-st.info("Please upload your FM24 export to begin.")
+  st.info("Please upload your FM24 export to begin.")
