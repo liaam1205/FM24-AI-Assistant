@@ -11,7 +11,7 @@ st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
 st.markdown(
     """
-Upload your FM24 exported squad and transfer market HTML files to analyze your squad and the available players.
+Upload your FM24 exported squad and transfer market HTML files to analyze your squad and available players.
 Ask AI questions about your squad or transfer targets, and view detailed player stats with radar charts!
 """
 )
@@ -20,26 +20,46 @@ Ask AI questions about your squad or transfer targets, and view detailed player 
 api_key = st.secrets["API_KEY"]
 client = openai.OpenAI(api_key=api_key)
 
-# --- Position Normalization with FM24 roles & positions ---
+# --- Position Normalization ---
 position_aliases = {
+    # Goalkeepers
     "GK": "Goalkeeper",
-    "SW": "Sweeper",
+
+    # Sweepers / Central defenders
     "D (C)": "Centre Back",
+
+    # Fullbacks / Wingbacks
     "D (L)": "Fullback",
     "D (R)": "Fullback",
     "WB (L)": "Wingback",
     "WB (R)": "Wingback",
+
+    # Defensive Midfielders
     "DM": "Defensive Midfielder",
+
+    # Central Midfielders
     "M (C)": "Central Midfielder",
+    "MC": "Central Midfielder",
+
+    # Attacking Midfielders
+    "AM (C)": "Attacking Midfielder",
+
+    # Wide Midfielders / Wingers
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (C)": "Attacking Midfielder",
     "AM (L)": "Winger",
     "AM (R)": "Winger",
+
+    # Inside Forward
     "IF (L)": "Inside Forward",
     "IF (R)": "Inside Forward",
+
+    # Forwards
     "ST (C)": "Striker",
+    "CF": "Complete Forward",
     "FW": "Forward",
+    "WF (L)": "Wide Forward",
+    "WF (R)": "Wide Forward",
 }
 
 def normalize_position(pos_str):
@@ -47,10 +67,12 @@ def normalize_position(pos_str):
         return "Unknown"
     positions = [p.strip() for p in pos_str.split(",")]
     for pos in positions:
-        # Remove role modifiers like (C), (L), (R)
-        base_pos = re.sub(r"\s*\(.*?\)", "", pos).upper()
-        if base_pos in position_aliases:
-            return position_aliases[base_pos]
+        # Remove brackets content and uppercase
+        pos_clean = re.sub(r"\s*\(.*?\)", "", pos).strip().upper()
+        if pos in position_aliases:
+            return position_aliases[pos]
+        elif pos_clean in position_aliases:
+            return position_aliases[pos_clean]
     return "Unknown"
 
 # --- Position-based metrics for radar charts ---
@@ -58,10 +80,6 @@ position_metrics = {
     "Goalkeeper": [
         "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
         "Saves Held", "Saves Parried", "Saves Tipped"
-    ],
-    "Sweeper": [
-        "Assists", "Goals", "Headers Won", "Tackle Completion Ratio",
-        "Interceptions", "Pass Completion Ratio"
     ],
     "Centre Back": [
         "Assists", "Goals", "Headers Won", "Tackle Completion Ratio",
@@ -99,6 +117,10 @@ position_metrics = {
         "Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes",
         "Expected Goals Overperformance", "Key Passes"
     ],
+    "Complete Forward": [
+        "Assists", "Goals", "Expected Goals per 90 Minutes",
+        "Expected Goals Overperformance", "Conversion %", "Key Passes"
+    ],
     "Striker": [
         "Assists", "Goals", "Expected Goals per 90 Minutes",
         "Expected Goals Overperformance", "Conversion %", "Key Passes"
@@ -107,22 +129,26 @@ position_metrics = {
         "Assists", "Goals", "Expected Goals per 90 Minutes",
         "Expected Goals Overperformance", "Conversion %", "Key Passes"
     ],
+    "Wide Forward": [
+        "Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes",
+        "Expected Goals Overperformance", "Key Passes"
+    ],
     "Unknown": [
         "Assists", "Goals", "Expected Goals per 90 Minutes",
         "Expected Goals Overperformance", "Expected Assists", "Key Passes"
     ]
 }
 
-# --- Parsing HTML export to DataFrame ---
+# --- HTML Parsing to DataFrame ---
 def parse_html_to_df(file):
     soup = BeautifulSoup(file, "html.parser")
     table = soup.find("table")
-    if table is None:
-        st.error("No table found in the uploaded HTML file.")
+    if not table:
+        st.error("No table found in HTML.")
         return pd.DataFrame()
     headers = [th.get_text(strip=True) for th in table.find_all("th")]
 
-    # Make column headers unique if needed
+    # Make headers unique
     seen = {}
     unique_headers = []
     for col in headers:
@@ -139,190 +165,89 @@ def parse_html_to_df(file):
         if len(cols) == len(unique_headers):
             rows.append(cols)
         else:
-            # Skipping rows with column mismatch
-            pass
+            # Skip rows that don't match column count
+            continue
 
     df = pd.DataFrame(rows, columns=unique_headers)
-    return df
 
-# --- Function to clean and convert numeric columns ---
-def clean_numeric_columns(df):
+    # Try to convert numeric columns to float
     for col in df.columns:
-        # Try to convert columns that look numeric
         try:
-            df[col] = pd.to_numeric(df[col].str.replace("%", "").str.replace(",", "."), errors='coerce')
-        except Exception:
+            df[col] = pd.to_numeric(df[col].str.replace(",",""), errors="coerce")
+        except:
             pass
     return df
 
-# --- Radar chart plotting ---
-def plot_radar_chart(player_stats, metrics, player_name):
-    # Normalize metric values between 0 and 1 for the radar chart
+# --- Normalize metric values for radar chart ---
+def normalize_metrics(df, metrics):
+    normalized = {}
+    for m in metrics:
+        if m not in df.columns:
+            normalized[m] = 0.0
+            continue
+        col = df[m]
+        if col.isnull().all():
+            normalized[m] = 0.0
+            continue
+        # Normalize by max in the whole dataframe for scaling (avoid dividing by zero)
+        max_val = df[m].max()
+        if max_val == 0 or pd.isna(max_val):
+            normalized[m] = 0.0
+        else:
+            normalized[m] = min(col.max() / max_val, 1.0)
+    return normalized
+
+# --- Radar Chart Plotting ---
+def plot_radar_chart(player_name, player_data, metrics):
+    categories = metrics
     values = []
-    for metric in metrics:
-        val = player_stats.get(metric, None)
+
+    # Build values list, normalized between 0-1 based on dataset max for each metric
+    for metric in categories:
+        val = player_data.get(metric)
         if val is None or pd.isna(val):
-            val = 0
-        values.append(val)
+            values.append(0)
+        else:
+            # Normalize value to 0-1 scale (using max of that metric across all players)
+            # To be done outside or with a helper arg? 
+            values.append(float(val))
+    # We'll scale the values dynamically in Streamlit below
 
-    max_val = max(values) if values else 1
-    # Avoid division by zero
-    if max_val == 0:
-        max_val = 1
-    values = [v / max_val for v in values]
-
-    # Radar plot setup
-    num_vars = len(metrics)
-    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-    # Close the plot
+    N = len(categories)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
     values += values[:1]
     angles += angles[:1]
 
     fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
 
-    ax.plot(angles, values, color="tab:blue", linewidth=2)
-    ax.fill(angles, values, color="tab:blue", alpha=0.25)
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
 
-    ax.set_yticklabels([])
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(metrics, fontsize=8)
+    plt.xticks(angles[:-1], categories, color='black', size=9)
+    ax.tick_params(pad=10)
 
-    ax.set_title(f"{player_name} - Key Metrics Radar", size=12, y=1.1)
-    plt.tight_layout()
+    # Y axis labels
+    ax.set_rlabel_position(0)
+    plt.yticks([0.2, 0.4, 0.6, 0.8], ["0.2", "0.4", "0.6", "0.8"], color="grey", size=7)
+    plt.ylim(0, 1)
+
+    # Plot line and fill
+    ax.plot(angles, values, color='tab:blue', linewidth=2, linestyle='solid')
+    ax.fill(angles, values, color='tab:blue', alpha=0.25)
+
+    plt.title(f"Performance Radar for {player_name}", size=14, y=1.1)
+
     st.pyplot(fig)
 
-# --- Main UI ---
-# Upload squad file
-uploaded_squad_file = st.file_uploader("Upload your FM24 Squad HTML export", type=["html"])
-# Upload transfer market file
-uploaded_transfer_file = st.file_uploader("Upload your FM24 Transfer Market HTML export", type=["html"])
+# --- Main App Logic ---
 
-# Initialize dataframes
-squad_df = pd.DataFrame()
-transfer_df = pd.DataFrame()
+# Upload squad HTML
+st.sidebar.header("Upload Files")
+squad_file = st.sidebar.file_uploader("Upload FM24 Squad HTML", type=["html"])
+transfer_file = st.sidebar.file_uploader("Upload FM24 Transfer Market HTML", type=["html"])
 
-if uploaded_squad_file:
-    squad_df = parse_html_to_df(uploaded_squad_file)
-    squad_df = clean_numeric_columns(squad_df)
-    if squad_df.empty:
-        st.error("Failed to parse squad file or file is empty.")
-    else:
-        # Normalize position column if exists
-        if "Position" in squad_df.columns:
-            squad_df["Normalized Position"] = squad_df["Position"].apply(normalize_position)
-        else:
-            squad_df["Normalized Position"] = "Unknown"
+if squad_file is None and transfer_file is None:
+    st.info("Please upload your FM24 squad and/or transfer market HTML files from the sidebar to get started.")
+    st.stop()
 
-        st.subheader("📋 Squad Player Stats")
-        st.dataframe(squad_df, use_container_width=True)
-
-        st.subheader("🤖 Ask AI about your Squad")
-        squad_question = st.text_area("Ask a question about your squad (e.g., 'Who should I sell?', 'Top midfielders?')")
-        if st.button("Analyze Squad with AI") and squad_question.strip():
-            with st.spinner("Analyzing squad with AI..."):
-                try:
-                    prompt = f"""
-You are a football analyst. Here are player stats from a Football Manager 2024 squad:
-
-{squad_df.to_markdown(index=False)}
-
-Answer the user question based on these stats:
-
-Question: {squad_question}
-"""
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "You are a tactical football analyst."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.7,
-                        max_tokens=800
-                    )
-                    answer = response.choices[0].message.content
-                    st.markdown("### 🧠 AI Insights on Squad")
-                    st.markdown(answer)
-                except Exception as e:
-                    st.error(f"API call failed: {e}")
-
-if uploaded_transfer_file:
-    transfer_df = parse_html_to_df(uploaded_transfer_file)
-    transfer_df = clean_numeric_columns(transfer_df)
-    if transfer_df.empty:
-        st.error("Failed to parse transfer market file or file is empty.")
-    else:
-        # Normalize position column if exists
-        if "Position" in transfer_df.columns:
-            transfer_df["Normalized Position"] = transfer_df["Position"].apply(normalize_position)
-        else:
-            transfer_df["Normalized Position"] = "Unknown"
-
-        st.subheader("📋 Transfer Market Players")
-        st.dataframe(transfer_df, use_container_width=True)
-
-        st.subheader("🤖 Ask AI about Transfer Market")
-        transfer_question = st.text_area("Ask a question about transfer targets (e.g., 'Best young strikers under 23?')")
-        if st.button("Analyze Transfers with AI") and transfer_question.strip():
-            with st.spinner("Analyzing transfer market with AI..."):
-                try:
-                    prompt = f"""
-You are a football analyst. Here are player stats from a Football Manager 2024 transfer market export:
-
-{transfer_df.to_markdown(index=False)}
-
-Answer the user question based on these stats:
-
-Question: {transfer_question}
-"""
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "You are a tactical football analyst."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.7,
-                        max_tokens=800
-                    )
-                    answer = response.choices[0].message.content
-                    st.markdown("### 🧠 AI Insights on Transfers")
-                    st.markdown(answer)
-                except Exception as e:
-                    st.error(f"API call failed: {e}")
-
-# --- Player detail and radar chart ---
-
-def display_player_details(df, title="Player Details"):
-    st.subheader(title)
-    player_names = df["Name"].dropna().unique().tolist()
-    selected_player = st.selectbox("Select a player to view details and radar chart", player_names)
-    if selected_player:
-        player_row = df[df["Name"] == selected_player].iloc[0]
-        st.markdown(f"### {selected_player}")
-        # Show player raw stats
-        st.write(player_row)
-
-        # Get normalized position for metrics selection
-        pos = player_row.get("Normalized Position", "Unknown")
-        metrics = position_metrics.get(pos, position_metrics["Unknown"])
-
-        # Prepare stats dict for radar chart
-        stats = {}
-        for m in metrics:
-            val = player_row.get(m)
-            # Try to convert to float if possible
-            try:
-                val = float(val)
-            except Exception:
-                val = 0
-            stats[m] = val
-
-        if len(stats) >= 3:
-            plot_radar_chart(stats, list(stats.keys()), selected_player)
-        else:
-            st.warning("⚠️ Not enough data to generate radar chart for this player.")
-
-if not squad_df.empty:
-    display_player_details(squad_df, "Squad Player Details")
-
-if not transfer_df.empty:
-    display_player_details(transfer_df, "Transfer Market Player Details")
+squad_df = None
