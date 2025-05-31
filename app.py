@@ -64,10 +64,11 @@ if st.button("Analyze with ChatGPT") and api_key and user_query:
 
     Answer the user's question based on these stats:
     """
-  try:
-    full_prompt = prompt + user_query
-except Exception as e:
-    print(f"Error: {e}")
+  def answer_user_question():
+    try:
+        full_prompt = prompt + user_query
+    except Exception as e:
+        print(f"Error: {e}")
 
     response = openai.ChatCompletion.create(
     model="gpt-4",
