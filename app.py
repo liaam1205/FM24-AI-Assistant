@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import openai
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -35,8 +34,8 @@ position_aliases = {
     "AM (C)": "Attacking Midfielder",
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",
-    "AM (R)": "Inside Forward",
+    "AM (L)": "Inside Forward",  # Your requested alias 1
+    "AM (R)": "Inside Forward",  # Your requested alias 2
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -119,81 +118,52 @@ position_metrics = {
     ]
 }
 
-# --- Column header mapping from FM export ---
-header_map = {
-    "Name": "Name",
-    "Club": "Club",
-    "Position": "Position",
-    "Age": "Age",
-    "CA": "Current Ability",
-    "PA": "Potential Ability",
-    "Transfer Value": "Transfer Value",
-    "Wage": "Wage",
-    "Ast": "Assists",
-    "Gls": "Goals",
-    "xG/90": "Expected Goals per 90 Minutes",
-    "xG-OP": "Expected Goals Overperformance",
-    "xA": "Expected Assists",
-    "K Pas": "Key Passes",
-    "Drb": "Dribbles Made",
-    "Pas %": "Pass Completion Ratio",
-    "Itc": "Interceptions",
-    "Hdrs": "Headers",
-    "Tck R": "Tackle Completion Ratio",
-    "Sv %": "Save Ratio",
-    "Clean Sheets": "Clean Sheets",
-    "Svh": "Saves Held",
-    "Svp": "Saves Parried",
-    "Sv": "Saves Tipped",
-}
-
-def clean_column_names(df):
-    new_cols = []
-    for col in df.columns:
-        clean_col = header_map.get(col.strip(), col.strip())
-        new_cols.append(clean_col)
-    df.columns = new_cols
-    return df
-
 # --- Parse HTML file to DataFrame ---
-def parse_html(uploaded_file):
+def parse_html(file):
     try:
-        soup = BeautifulSoup(uploaded_file, 'html.parser')
+        content = file.read()
+        soup = BeautifulSoup(content, 'html.parser')
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Get headers from <thead> if exists else first <tr>
+        # Prefer <thead>, fallback to first <tr> if no thead
         thead = table.find("thead")
         if thead:
-            header_row = thead.find_all("th")
+            headers = [th.get_text(strip=True) for th in thead.find_all("th")]
         else:
             first_row = table.find("tr")
-            header_row = first_row.find_all(["th", "td"])
+            headers = [th.get_text(strip=True) for th in first_row.find_all(["th", "td"])]
 
-        headers = [th.get_text(strip=True) for th in header_row]
-
-        # Get all rows with matching number of columns
         rows = []
-        for tr in table.find_all("tr"):
+        tbody = table.find("tbody")
+        if tbody:
+            trs = tbody.find_all("tr")
+        else:
+            trs = table.find_all("tr")[1:]  # skip header row
+
+        for tr in trs:
             cells = tr.find_all("td")
-            if len(cells) != len(headers):
+            if not cells:
                 continue
             row = [td.get_text(strip=True) for td in cells]
-            rows.append(row)
+            if len(row) == len(headers):
+                rows.append(row)
 
         df = pd.DataFrame(rows, columns=headers)
-        df = clean_column_names(df)
 
-        # Convert numeric columns (remove commas, %)
+        # Clean and convert columns that are numeric
         for col in df.columns:
-            df[col] = df[col].str.replace(",", "").str.replace("%", "", regex=False)
+            # Remove % and commas for numeric conversion
+            df[col] = df[col].str.replace("%", "").str.replace(",", "").str.strip()
             df[col] = pd.to_numeric(df[col], errors='ignore')
 
-        # Normalize positions
+        # Normalize position columns
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
+        elif "Pos" in df.columns:
+            df["Normalized Position"] = df["Pos"].apply(normalize_position)
         else:
             df["Normalized Position"] = "Unknown"
 
@@ -202,7 +172,7 @@ def parse_html(uploaded_file):
         st.error(f"Error parsing HTML file: {e}")
         return None
 
-# --- Radar chart (pizza) for player ---
+# --- Plot radar (pizza) chart for player ---
 def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
     labels = metrics
     values = []
@@ -212,13 +182,12 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val = 0
         values.append(float(val))
 
-    # Complete the loop
     values += values[:1]
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(3.5, 3.5), subplot_kw=dict(polar=True))
-    ax.fill(angles, values, color='orange', alpha=0.3)
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    ax.fill(angles, values, color='orange', alpha=0.25)
     ax.plot(angles, values, color='orange', linewidth=2)
 
     ax.set_yticklabels([])
@@ -237,100 +206,30 @@ def display_player_details(df, player_name):
         return
     player_data = player_row.iloc[0].to_dict()
 
-    st.subheader(f"Player Details: {player_name} ({player_data.get('Club','')}, {player_data.get('Position','')})")
+    st.subheader(f"{player_name} — {player_data.get('Nationality', '')} — {player_data.get('Position', '')}")
 
-    # Show player stats table (excluding normalized position)
-    details_to_show = {k: v for k, v in player_data.items() if k != 'Normalized Position'}
-    st.json(details_to_show)
+    # Basic Info and Key Stats in 2 columns
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Basic Info**")
+        st.write(f"**Age:** {player_data.get('Age', 'N/A')}")
+        st.write(f"**Club:** {player_data.get('Club', 'N/A')}")
+        st.write(f"**Current Ability:** {player_data.get('CA', 'N/A')}")
+        st.write(f"**Potential Ability:** {player_data.get('PA', 'N/A')}")
+        st.write(f"**Transfer Value:** {player_data.get('Transfer Value', 'N/A')}")
+        st.write(f"**Wage:** {player_data.get('Wage', 'N/A')}")
 
-    # Radar chart by normalized position
-    position = player_data.get("Normalized Position", "Unknown")
-    metrics = position_metrics.get(position, position_metrics["Unknown"])
+    with col2:
+        st.markdown("**Key Stats**")
+        offensive = ["Gls", "Ast", "xG/90", "xG-OP", "xA", "K Pas", "Drb"]
+        defensive = ["Tck R", "Itc", "Hdrs"]
+        passing = ["Pas %"]
+        goalkeeper = ["Sv %", "Clean Sheets", "Svh", "Svp", "Sv"]
 
-    # Filter metrics that exist and have data
-    valid_metrics = [m for m in metrics if m in player_data and pd.notna(player_data[m])]
-    if len(valid_metrics) < 3:
-        st.warning("Not enough data for radar chart.")
-        return
+        def show_stats(stats):
+            for stat in stats:
+                val = player_data.get(stat)
+                if val is not None and not (isinstance(val, float) and np.isnan(val)):
+                    st.write(f"**{stat}:** {val}")
 
-    plot_player_radar(player_data, valid_metrics, title=f"{player_name} - {position}")
-
-# --- AI Scouting Report ---
-def get_ai_scout_report(player_name, player_data):
-    prompt = (
-        f"Provide a detailed scouting report for the football player named {player_name} "
-        f"based on the following stats:\n"
-    )
-    for stat, val in player_data.items():
-        prompt += f"- {stat}: {val}\n"
-    prompt += "\nGive insights on strengths, weaknesses, playing style, and potential."
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error generating scouting report: {e}"
-
-# --- Main UI ---
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.header("Upload Squad HTML Export")
-    squad_file = st.file_uploader("Upload Squad HTML", type=["html"])
-    squad_df = None
-    if squad_file is not None:
-        squad_df = parse_html(squad_file)
-        if squad_df is not None:
-            st.success(f"Loaded squad with {len(squad_df)} players")
-            st.dataframe(squad_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]])
-
-            # Player selection
-            player_selected = st.selectbox("Select Player for Detailed View", squad_df["Name"].sort_values())
-            if player_selected:
-                display_player_details(squad_df, player_selected)
-
-                # AI scouting report
-                if st.button("Generate AI Scouting Report"):
-                    player_data = squad_df[squad_df["Name"] == player_selected].iloc[0].to_dict()
-                    report = get_ai_scout_report(player_selected, player_data)
-                    st.markdown("### AI Scouting Report")
-                    st.write(report)
-
-with col2:
-    st.header("Upload Transfer Market HTML Export")
-    transfer_file = st.file_uploader("Upload Transfer Market HTML", type=["html"])
-    transfer_df = None
-    if transfer_file is not None:
-        transfer_df = parse_html(transfer_file)
-        if transfer_df is not None:
-            st.success(f"Loaded {len(transfer_df)} transfer market players")
-            st.dataframe(transfer_df[["Name", "Club", "Position", "Age", "Transfer Value", "Wage"]])
-
-            # Search filter for transfers
-            pos_filter = st.selectbox("Filter by Position", options=["All"] + list(position_metrics.keys()))
-            if pos_filter != "All":
-                filtered_df = transfer_df[transfer_df["Normalized Position"] == pos_filter]
-            else:
-                filtered_df = transfer_df
-
-            search_name = st.text_input("Search Player by Name")
-            if search_name:
-                filtered_df = filtered_df[filtered_df["Name"].str.contains(search_name, case=False, na=False)]
-
-            st.dataframe(filtered_df[["Name", "Club", "Position", "Age", "Transfer Value", "Wage"]])
-
-            # Transfer player details and radar
-            transfer_selected = st.selectbox("Select Transfer Player for Details", filtered_df["Name"].sort_values())
-            if transfer_selected:
-                display_player_details(filtered_df, transfer_selected)
-
-                if st.button("Generate AI Scouting Report (Transfer Player)"):
-                    player_data = filtered_df[filtered_df["Name"] == transfer_selected].iloc[0].to_dict()
-                    report = get_ai_scout_report(transfer_selected, player_data)
-                    st.markdown("### AI Scouting Report")
-                    st.write(report)
+        show_stats
