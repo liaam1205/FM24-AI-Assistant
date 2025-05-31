@@ -68,7 +68,7 @@ if uploaded_file is not None:
                 full_prompt = prompt + "\n\nUser question: " + user_query
 
                 response = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "You are a tactical football analyst."},
                         {"role": "user", "content": full_prompt}
