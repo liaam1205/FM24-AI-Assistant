@@ -16,9 +16,9 @@ if api_key:
 uploaded_file = st.file_uploader("Upload your FM24 HTML export", type=["html"])
 
 def parse_html_to_df(file):
-soup = BeautifulSoup(file, "html.parser")
-table = soup.find("table")
-headers = [th.get_text(strip=True) for th in table.find_all("th")]
+  soup = BeautifulSoup(file, "html.parser")
+  table = soup.find("table")
+  headers = [th.get_text(strip=True) for th in table.find_all("th")]
 
 # Make column headers unique to avoid duplication error
 seen = {}
