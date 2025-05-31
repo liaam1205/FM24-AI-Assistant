@@ -35,8 +35,8 @@ position_aliases = {
     "AM (C)": "Attacking Midfielder",
     "M (L)": "Wide Midfielder",
     "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",  # Changed as per request
-    "AM (R)": "Inside Forward",  # Changed as per request
+    "AM (L)": "Inside Forward",
+    "AM (R)": "Inside Forward",
     "IF": "Inside Forward",
     "ST (C)": "Striker",
     "FW": "Forward",
@@ -86,10 +86,6 @@ position_metrics = {
         "Expected Goals Overperformance", "Expected Assists", "Key Passes"
     ],
     "Wide Midfielder": [
-        "Assists", "Goals", "Dribbles Made", "Key Passes",
-        "Pass Completion Ratio", "Expected Goals per 90 Minutes"
-    ],
-    "Winger": [
         "Assists", "Goals", "Dribbles Made", "Key Passes",
         "Pass Completion Ratio", "Expected Goals per 90 Minutes"
     ],
@@ -158,7 +154,6 @@ def parse_html(file) -> pd.DataFrame | None:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Sometimes thead is missing, fallback to first row as header
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -171,21 +166,17 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-        # Map headers to normalized form, ignore unmapped columns
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Remove columns that are None (unmapped)
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
         rows = []
-        # All table rows except header row(s)
         trs = table.find_all("tr")
         for tr in trs:
             cells = tr.find_all("td")
             if len(cells) == 0:
-                continue  # skip header rows
-            # Extract only valid columns
+                continue
             row = [cells[i].get_text(strip=True) for i in valid_cols_idx if i < len(cells)]
             if len(row) == len(valid_headers):
                 rows.append(row)
@@ -196,13 +187,11 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Convert numeric columns (remove commas, %, etc.)
+        # Clean numeric columns
         for col in df.columns:
-            # Remove % for pass ratio and conversion
-            df[col] = df[col].str.replace(",", "").str.replace("%", "")
+            df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "")
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -229,4 +218,109 @@ def plot_player_radar(player_data: dict, metrics: list[str], title="Player Radar
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize
+    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+
+    plt.xticks(angles[:-1], labels, color='grey', size=10)
+    ax.plot(angles, values, color='red', linewidth=2, linestyle='solid')
+    ax.fill(angles, values, color='red', alpha=0.25)
+
+    # Remove ytick labels and set grid
+    ax.set_yticklabels([])
+    ax.set_ylim(0, max(10, max(values)))  # dynamic max scale
+
+    plt.title(title, size=14, color='black', y=1.1)
+    st.pyplot(fig)
+
+# --- Show player details in a clean table ---
+def display_player_details(player: pd.Series):
+    details = {
+        "Name": player.get("Name", ""),
+        "Club": player.get("Club", ""),
+        "Age": player.get("Age", ""),
+        "Position": player.get("Position", ""),
+        "Current Ability": player.get("Current Ability", ""),
+        "Potential Ability": player.get("Potential Ability", ""),
+        "Transfer Value": player.get("Transfer Value", ""),
+        "Wage": player.get("Wage", ""),
+        "Goals": player.get("Goals", ""),
+        "Assists": player.get("Assists", ""),
+    }
+    # Display in a two-column table
+    details_df = pd.DataFrame.from_dict(details, orient='index', columns=['Value'])
+    st.table(details_df)
+
+# --- AI Scouting report placeholder ---
+def generate_ai_report(player_name: str):
+    # NOTE: For now, just a placeholder static message
+    # Integrate with OpenAI ChatCompletion API as needed
+    prompt = f"Write a detailed scouting report for the football player {player_name} based on FM24 data."
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role":"user","content":prompt}],
+            max_tokens=300
+        )
+        report = response.choices[0].message.content
+    except Exception as e:
+        report = f"AI report generation error: {e}"
+    return report
+
+# --- Main ---
+def main():
+    st.sidebar.header("Upload Your Files")
+    squad_file = st.sidebar.file_uploader("Upload Squad HTML Export", type=["html", "htm"])
+    transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", type=["html", "htm"])
+
+    squad_df = None
+    transfer_df = None
+
+    if squad_file:
+        squad_df = parse_html(squad_file)
+    if transfer_file:
+        transfer_df = parse_html(transfer_file)
+
+    if squad_df is not None:
+        st.header("📋 Squad Overview")
+        st.dataframe(squad_df)
+
+        player_name_list = squad_df["Name"].dropna().unique()
+        selected_player = st.selectbox("Select a player to analyze:", player_name_list)
+
+        if selected_player:
+            player = squad_df[squad_df["Name"] == selected_player].iloc[0]
+
+            st.subheader("Player Details")
+            display_player_details(player)
+
+            st.subheader("Player Radar Chart")
+
+            pos = player.get("Normalized Position", "Unknown")
+            metrics = position_metrics.get(pos, position_metrics["Unknown"])
+
+            # Ensure metrics exist in DataFrame columns
+            available_metrics = [m for m in metrics if m in squad_df.columns]
+
+            if len(available_metrics) < 3:
+                st.warning("Not enough data to plot radar chart for this player.")
+            else:
+                player_data = player.to_dict()
+                plot_player_radar(player_data, available_metrics, title=f"{selected_player} - {pos}")
+
+            st.subheader("AI Scouting Report")
+            with st.spinner("Generating AI scouting report..."):
+                report = generate_ai_report(selected_player)
+            st.write(report)
+
+    if transfer_df is not None:
+        st.header("🔎 Transfer Market Players")
+        st.dataframe(transfer_df)
+
+        transfer_search = st.text_input("Search Transfer Market by Player Name")
+        if transfer_search:
+            filtered_transfers = transfer_df[transfer_df["Name"].str.contains(transfer_search, case=False, na=False)]
+            st.dataframe(filtered_transfers)
+
+if __name__ == "__main__":
+    main()
