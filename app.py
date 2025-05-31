@@ -203,6 +203,9 @@ def parse_html(file) -> pd.DataFrame | None:
             if col is None or col not in df:
                 continue  # Skip unknown or invalid columns
 
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = ['_'.join(map(str, col)).strip() for col in df.columns.values]
+            
             if df[col].dtype == object:
                 df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
                 df[col] = pd.to_numeric(df[col], errors="ignore")
