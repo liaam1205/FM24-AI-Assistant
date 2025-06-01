@@ -54,7 +54,7 @@ def normalize_position(pos_str):
                 return position_aliases[alias_key]
     return "Unknown"
 
-# --- Metrics for radar charts per position ---
+# --- Position-based metrics for radar charts ---
 position_metrics = {
     "Goalkeeper": [
         "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
@@ -145,7 +145,7 @@ header_mapping = {
     "Svt": "Saves Tipped",
 }
 
-# --- HTML parsing function ---
+# --- Robust HTML parser function ---
 def parse_html(file) -> pd.DataFrame | None:
     try:
         html = file.read().decode("utf-8")
@@ -156,7 +156,7 @@ def parse_html(file) -> pd.DataFrame | None:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Extract headers from thead or first tr
+        # Headers extraction from thead or first row
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -169,8 +169,10 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
+        # Map headers using mapping; None for unknown headers
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
+        # Filter only columns with valid headers
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
@@ -196,18 +198,17 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns
+        # Clean numeric columns - FIXED dtype access with hasattr check
         for col in df.columns:
             if col is None or col not in df:
                 continue
-            if df[col].dtype == object:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
-                )
-            df[col] = pd.to_numeric(df[col], errors="ignore")
+            series = df[col]
+            if hasattr(series, "dtype") and series.dtype == object:
+                series = series.astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
+                try:
+                    df[col] = pd.to_numeric(series, errors="ignore")
+                except Exception:
+                    pass
 
         # Normalize positions
         if "Position" in df.columns:
@@ -221,7 +222,6 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-# --- Plot player bar chart for key metrics ---
 def plot_player_barchart(player_row, metrics, player_name):
     labels = [metric for metric in metrics if player_row.get(metric) not in ["N/A", None, ""]]
 
@@ -267,7 +267,6 @@ def plot_player_barchart(player_row, metrics, player_name):
     plt.tight_layout()
     st.pyplot(fig)
 
-# --- Generate AI scouting report ---
 def get_ai_scouting_report(player_name, player_data):
     prompt = f"""
 You are a football scouting expert. Based on the following player data, write a concise, insightful scouting report for {player_name}:
@@ -290,84 +289,56 @@ Focus on strengths, weaknesses, and potential.
     except Exception as e:
         return f"Error generating AI scouting report: {e}"
 
-# --- Main UI ---
+# --- Main App ---
 
-st.header("Upload Squad and Transfer Files")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    squad_file = st.file_uploader("Upload FM24 Squad HTML Export", type=["html", "htm"])
-
-with col2:
-    transfer_file = st.file_uploader("Upload FM24 Transfer Market HTML Export", type=["html", "htm"])
+# Upload squad and transfer market files
+st.sidebar.header("Upload Files")
+squad_file = st.sidebar.file_uploader("Upload Squad HTML file", type=["html", "htm"])
+transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
 
 squad_df = None
 transfer_df = None
 
-if squad_file is not None:
+if squad_file:
     squad_df = parse_html(squad_file)
     if squad_df is not None:
-        st.success(f"Loaded Squad data with {len(squad_df)} players")
-        # Show squad preview
-        st.dataframe(squad_df.head(10))
+        st.sidebar.success(f"Squad loaded: {len(squad_df)} players")
 
-if transfer_file is not None:
+if transfer_file:
     transfer_df = parse_html(transfer_file)
     if transfer_df is not None:
-        st.success(f"Loaded Transfer Market data with {len(transfer_df)} players")
-        # Show transfer preview
-        st.dataframe(transfer_df.head(10))
+        st.sidebar.success(f"Transfer market loaded: {len(transfer_df)} players")
 
-# --- Squad Analysis ---
-if squad_df is not None:
-    st.header("Squad Player Details and AI Scouting")
+# Select dataset to work on
+dataset_choice = st.sidebar.selectbox("Select dataset to analyze", options=["Squad", "Transfer Market"])
 
-    player_names = squad_df["Name"].dropna().unique()
-    selected_player = st.selectbox("Select a player from squad", player_names)
+df = squad_df if dataset_choice == "Squad" else transfer_df
 
-    if selected_player:
-        player_row = squad_df[squad_df["Name"] == selected_player].iloc[0]
-        st.subheader(f"Stats for {selected_player}")
-        metrics = position_metrics.get(player_row["Normalized Position"], position_metrics["Unknown"])
-        plot_player_barchart(player_row, metrics, selected_player)
+if df is not None:
+    st.subheader(f"{dataset_choice} Players Overview")
+    st.dataframe(df)
 
-        if st.button("Generate AI Scouting Report"):
-            with st.spinner("Generating scouting report..."):
-                report = get_ai_scouting_report(selected_player, player_row)
-            st.markdown(f"**AI Scouting Report:**\n\n{report}")
+    # Player search
+    player_name = st.text_input(f"Search {dataset_choice} player by name")
+    if player_name:
+        player_rows = df[df["Name"].str.contains(player_name, case=False, na=False)]
+        if player_rows.empty:
+            st.warning("No players found with that name.")
+        else:
+            for idx, player_row in player_rows.iterrows():
+                st.markdown(f"### {player_row['Name']} ({player_row.get('Club', 'N/A')})")
+                st.write(player_row)
 
-# --- Transfer Market Search ---
-if transfer_df is not None:
-    st.header("Transfer Market Player Search & Filter")
+                # Radar/bar chart based on position
+                pos = player_row.get("Normalized Position", "Unknown")
+                metrics = position_metrics.get(pos, position_metrics["Unknown"])
 
-    search_name = st.text_input("Search player by name")
+                plot_player_barchart(player_row, metrics, player_row["Name"])
 
-    positions = ["All"] + sorted(transfer_df["Normalized Position"].dropna().unique().tolist())
-    filter_position = st.selectbox("Filter by position", positions)
-
-    # Age slider limits
-    min_age_val = int(transfer_df["Age"].min())
-    max_age_val = int(transfer_df["Age"].max())
-
-    min_age, max_age = st.slider(
-        "Filter by Age",
-        min_value=min_age_val,
-        max_value=max_age_val,
-        value=(min_age_val, max_age_val),
-        step=1,
-    )
-
-    # Filter dataframe
-    filtered_df = transfer_df.copy()
-
-    if search_name:
-        filtered_df = filtered_df[filtered_df["Name"].str.contains(search_name, case=False, na=False)]
-
-    if filter_position != "All":
-        filtered_df = filtered_df[filtered_df["Normalized Position"] == filter_position]
-
-    filtered_df = filtered_df[(filtered_df["Age"] >= min_age) & (filtered_df["Age"] <= max_age)]
-
-    st.write(f"Found {len(filtered_df)} players matching filter criteria")
-    st.dataframe(filtered_df.reset_index(drop=True))
+                # AI scouting report button
+                if st.button(f"Generate AI scouting report for {player_row['Name']}", key=f"ai_report_{idx}"):
+                    with st.spinner("Generating AI scouting report..."):
+                        report = get_ai_scouting_report(player_row["Name"], player_row)
+                        st.info(report)
+else:
+    st.info("Please upload squad or transfer market HTML files to begin analysis.")
