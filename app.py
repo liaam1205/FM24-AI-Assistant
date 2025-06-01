@@ -247,63 +247,26 @@ def plot_player_radar(player_row, metrics, player_name):
     if num_vars == 0:
         st.warning("Not enough data to create radar chart.")
         return
-        
-    # Repeat the first value to close the radar chart
-    values += values[:1]
+
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    values += values[:1]
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    # Smaller figure size
+    fig, ax = plt.subplots(figsize=(2.5, 2.5), subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='tab:blue', linewidth=2)
+    ax.fill(angles, values, color='tab:blue', alpha=0.25)
 
-    # Draw the outline
-    ax.plot(angles, values, color='dodgerblue', linewidth=2)
-    ax.fill(angles, values, color='dodgerblue', alpha=0.25)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=7)
 
-    # Tidy up the axes
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
-    ax.set_rlabel_position(0)
+    ax.set_title(player_name, size=10, color='white', pad=10)
+    ax.grid(True, linestyle='--', linewidth=0.5, color='gray')
+    ax.set_facecolor("none")
+    fig.patch.set_alpha(0)
 
-    # Remove radial labels (Y-axis) and set grid
-    ax.set_yticklabels([])
-    ax.grid(True, color="gray", linestyle="dotted", linewidth=0.5)
-
-    # Set category labels and values separately
-    for i, label in enumerate(labels):
-        angle_rad = angles[i]
-        ha = "left" if np.pi/2 < angle_rad < 3*np.pi/2 else "right"
-        distance = values[i] + 5  # Adjust position for value text
-
-        # Stat name
-        ax.text(
-            angle_rad,
-            distance + 5,
-            label,
-            size=8,
-            horizontalalignment='center',
-            verticalalignment='center',
-            color='white',
-            bbox=dict(facecolor='black', edgecolor='none', alpha=0.6, boxstyle='round,pad=0.2')
-        )
-
-        # Stat value
-        ax.text(
-            angle_rad,
-            distance,
-            f"{values[i]:.1f}",
-            size=7,
-            horizontalalignment='center',
-            verticalalignment='center',
-            color='lightgray'
-        )
-
-    # Title
-    plt.title(player_name, size=12, y=1.1, color='white')
-
-    # Dark background to match app
-    fig.patch.set_facecolor('#0e1117')
-    ax.set_facecolor('#0e1117')
-
+    # Tight layout to reduce padding
+    plt.tight_layout()
     st.pyplot(fig)
                           
 # --- AI Scouting Report ---
