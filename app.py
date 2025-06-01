@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import numpy as np
 from openai import OpenAI
+import re
 
 # --- STREAMLIT PAGE CONFIG ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
