@@ -226,24 +226,28 @@ def parse_html(file) -> pd.DataFrame | None:
         return None
 
 def plot_player_radar(player_row, metrics, player_name):
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    import numpy as np
+
     labels = [metric for metric in metrics if player_row.get(metric) not in ["N/A", None, ""]]
 
-def clean_value(val):
-    if isinstance(val, str) and "%" in val:
-        val = val.replace("%", "")
-    try:
-        return float(val)
-    except:
-        return 0.0
+    def clean_value(val):
+        if isinstance(val, str) and "%" in val:
+            val = val.replace("%", "")
+        try:
+            return float(val)
+        except:
+            return 0.0
 
-values = [clean_value(player_data[metric]) for metric in labels]
+    values = [clean_value(player_row[metric]) for metric in labels]
 
-num_vars = len(labels)
+    num_vars = len(labels)
 
-if num_vars == 0:
-    st.warning("Not enough data to create radar chart.")
+    if num_vars == 0:
+        st.warning("Not enough data to create radar chart.")
         return
-
+        
     # Repeat the first value to close the radar chart
     values += values[:1]
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
