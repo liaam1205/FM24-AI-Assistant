@@ -353,7 +353,7 @@ if squad_df is not None:
         # Radar Chart
         pos = player_row["Normalized Position"]
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        plot_player_radar(player_row, metrics, selected_player)
+        plot_player_barchart(player_row, metrics, player_name)
 
         # AI Scouting Report
         if st.button("Generate AI Scouting Report"):
@@ -391,7 +391,7 @@ if transfer_df is not None and not transfer_df.empty:
             pos = player_row.get("Normalized Position", "Unknown")
             metrics = position_metrics.get(pos, position_metrics["Unknown"])
             st.markdown("#### Performance Overview (Pizza Chart)")
-            plot_player_radar(player_row, metrics, selected_player)
+           plot_player_barchart(player_row, metrics, player_name)
 
             # AI Scout Report
             if st.button("Generate AI Scout Report for Transfer Player"):
