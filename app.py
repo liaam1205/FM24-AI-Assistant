@@ -425,7 +425,6 @@ def clean_and_extract_metrics(player_row):
         except:
             continue
     return metrics
-
 all_metrics = clean_and_extract_metrics(player_row)
 
 # Only show chart if there's data
