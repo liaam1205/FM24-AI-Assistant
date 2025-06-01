@@ -361,7 +361,9 @@ if squad_df is not None:
             st.markdown("### AI Scouting Report")
             st.write(report)
 
-# --- Main Interface for Transfer Market ---
+selected_player = None
+player_row = None
+
 if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
 
@@ -441,6 +443,10 @@ if transfer_df is not None and not transfer_df.empty:
 else:
     st.error("Transfer DataFrame is empty or not loaded.")
 
+# If you want to use selected_player or player_row after this block, check they exist:
+if selected_player is not None and player_row is not None:
+    # your code here that uses selected_player or player_row
+    pass
             # Bar Chart for Transfer Market Player
     pos = player_row.get("Normalized Position", "Unknown")
     metrics = position_metrics.get(pos, position_metrics["Unknown"])
