@@ -225,51 +225,106 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_pizza(player_data, metrics, title="Player Performance"):
+def plot_compare_players_pizza(player1_data, player2_data, metrics, 
+                               player1_name="Player 1", player2_name="Player 2",
+                               player1_color='orangered', player2_color='dodgerblue',
+                               title="Player Comparison"):
     labels = metrics
-    values = []
+    values1 = []
+    values2 = []
 
     for m in metrics:
-        val = player_data.get(m)
-
-        # Clean value (handle %, commas, etc.)
-        if isinstance(val, str):
-            val = val.replace(",", "").replace("%", "")
+        # Clean & convert player 1 value
+        val1 = player1_data.get(m, 0)
+        if isinstance(val1, str):
+            val1 = val1.replace(",", "").replace("%", "")
         try:
-            val_float = float(val)
+            val1_float = float(val1)
         except (ValueError, TypeError):
-            val_float = 0.0
-        values.append(val_float)
+            val1_float = 0.0
+        values1.append(val1_float)
+
+        # Clean & convert player 2 value
+        val2 = player2_data.get(m, 0)
+        if isinstance(val2, str):
+            val2 = val2.replace(",", "").replace("%", "")
+        try:
+            val2_float = float(val2)
+        except (ValueError, TypeError):
+            val2_float = 0.0
+        values2.append(val2_float)
 
     N = len(labels)
-    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
-    values += values[:1]  # loop back to the start
-    angles += angles[:1]  # loop back to the start
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    width = (2 * np.pi / N) * 0.4  # width of each bar, smaller to fit side by side
 
-    # Plot setup
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
 
-    # Remove default gridlines and radial ticks
-    ax.set_yticklabels([])
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=9, color="black")
+    max_val = max(max(values1), max(values2), 1)  # avoid zero division
 
-    # Rotate labels for readability
-    for label, angle in zip(ax.get_xticklabels(), angles[:-1]):
-        angle_deg = np.degrees(angle)
-        if angle_deg >= 90 and angle_deg <= 270:
-            label.set_rotation(angle_deg + 180)
-            label.set_horizontalalignment('right')
-        else:
-            label.set_rotation(angle_deg)
-            label.set_horizontalalignment('left')
+    radii1 = [v / max_val * 100 for v in values1]
+    radii2 = [v / max_val * 100 for v in values2]
 
-    # Plot the data
-    ax.plot(angles, values, color="orangered", linewidth=2)
-    ax.fill(angles, values, color="orangered", alpha=0.25)
+    bars1 = ax.bar(angles - width/2, radii1, width=width, bottom=0.0, 
+                   color=player1_color, alpha=0.7, edgecolor='black', label=player1_name)
 
-    # Title
-    plt.title(title, size=14, y=1.08, color="orangered")
+    bars2 = ax.bar(angles + width/2, radii2, width=width, bottom=0.0, 
+                   color=player2_color, alpha=0.7, edgecolor='black', label=player2_name)
+
+    # Add labels & values for player 1 (outside bars)
+    for bar, angle, label, val in zip(bars1, angles, labels, values1):
+        rotation = np.rad2deg(angle)
+        ax.text(
+            angle - width/2,
+            bar.get_height() + 5,
+            f"{val:.1f}",
+            ha='center',
+            va='center',
+            fontsize=8,
+            rotation=rotation,
+            rotation_mode='anchor',
+            color=player1_color,
+            fontweight='bold'
+        )
+
+    # Add labels & values for player 2
+    for bar, angle, label, val in zip(bars2, angles, labels, values2):
+        rotation = np.rad2deg(angle)
+        ax.text(
+            angle + width/2,
+            bar.get_height() + 5,
+            f"{val:.1f}",
+            ha='center',
+            va='center',
+            fontsize=8,
+            rotation=rotation,
+            rotation_mode='anchor',
+            color=player2_color,
+            fontweight='bold'
+        )
+
+    # Add stat labels in the center
+    for angle, label in zip(angles, labels):
+        rotation = np.rad2deg(angle)
+        ax.text(
+            angle,
+            105,
+            label,
+            ha='center',
+            va='center',
+            fontsize=9,
+            rotation=rotation,
+            rotation_mode='anchor',
+            fontweight='bold',
+            color='black'
+        )
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['polar'].set_visible(False)
+
+    plt.title(title, y=1.1, fontsize=14, fontweight='bold')
+    plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
     st.pyplot(fig)
     
