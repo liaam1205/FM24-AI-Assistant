@@ -385,8 +385,11 @@ if transfer_df is not None and not transfer_df.empty:
             st.write(f"**Age:** {player_row['Age']}")
             st.write(f"**Current Ability:** {player_row['Current Ability']}")
             st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+            st.markdown("### 📋 Contract Information")
+            st.markdown(f"**Transfer Value:** {transfer_value}")
+            st.markdown(f"**Wage:** {wage}")
 
-            # Pizza Chart for Transfer Market Player
+            # Bar Chart for Transfer Market Player
             pos = player_row.get("Normalized Position", "Unknown")
             metrics = position_metrics.get(pos, position_metrics["Unknown"])
             st.markdown("#### Performance Overview (Pizza Chart)")
