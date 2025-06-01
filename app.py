@@ -385,11 +385,11 @@ if squad_df is not None:
 
     def draw_pizza_chart(player_data):
     # Your code for rendering radar chart or pizza chart using player_data
-    pass
+        pass
 
-def generate_scout_report(player_data):
+    def generate_scout_report(player_data):
     # Your logic to return a string summary
-    return f"{player_data['Name']} is a promising {player_data['Position']} with high potential."
+        return f"{player_data['Name']} is a promising {player_data['Position']} with high potential."
 
         # Radar Chart
         pos = player_row["Normalized Position"]
