@@ -102,32 +102,32 @@ def parse_currency(value):
 
 def parse_html(file):
     try:
-        # Read all tables using lxml parser
         tables = pd.read_html(file, flavor="lxml")
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
         return pd.DataFrame()
 
-    # Find table with the most relevant columns (intersection with METRIC_MAPPING keys)
+    # Select the table with most overlapping columns with header_mapping values
     df = max(tables, key=lambda t: len(set(t.columns) & set(header_mapping.values())))
 
     # Remove duplicate columns
     df = df.loc[:, ~df.columns.duplicated()]
 
-    # Rename columns according to header mapping
+    # Rename columns
     df = df.rename(columns=header_mapping)
 
-    # Normalize position names if present
+    # Normalize position column if present
     if "Position" in df.columns:
         df["Normalized Position"] = df["Position"].apply(normalize_position)
 
-    # Clean and convert numeric columns
     for col in df.columns:
         if col in ["Transfer Value", "Wage"]:
             df[col] = df[col].apply(parse_currency)
         elif col not in ["Name", "Club", "Position", "Normalized Position"]:
-            # Clean strings safely
-            df[col] = df[col].astype(str).apply(lambda x: x.replace(",", "").replace("%", "").strip())
+            # Safely clean strings before converting to numeric
+            df[col] = df[col].apply(
+                lambda x: x.replace(",", "").replace("%", "").strip() if isinstance(x, str) else ""
+            )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     return df
