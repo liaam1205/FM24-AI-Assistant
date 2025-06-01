@@ -245,75 +245,75 @@ def plot_player_pizza(player_data, metrics,
         values.append(val_float)
 
     N = len(labels)
-    # Angles for bars, spread out with padding
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
-    # Increase gap by reducing bar width further
-    width = (2 * np.pi / N) * 0.4  
 
-    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
     radii = [v / max_val * 100 for v in values]
 
+    width = 2 * np.pi / N * 0.8  # Wider bars, less gap
+
     bars = ax.bar(
-        angles, 
-        radii, 
-        width=width, 
-        bottom=0.0,
-        color=player_color, 
-        alpha=0.8, 
-        edgecolor='black', 
+        angles,
+        radii,
+        width=width,
+        bottom=0,
+        color=player_color,
+        edgecolor='black',
         linewidth=1.5,
-        align='center'  # center bars on angles for better spacing
+        alpha=0.85,
+        align='edge'  # bars start exactly at angle position
     )
 
-    # Add value labels above bars with vertical offset to reduce overlap
-    label_offsets = []
-    for idx, (bar, angle, val) in enumerate(zip(bars, angles, values)):
+    # Draw concentric grid lines and labels at 0, 25, 50, 75, 100
+    grid_vals = [0, 25, 50, 75, 100]
+    ax.set_yticks(grid_vals)
+    ax.set_yticklabels([str(g) for g in grid_vals])
+    ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.7, alpha=0.6)
+
+    # Add value labels at the end of each bar
+    for bar, angle, val in zip(bars, angles, values):
         rotation = np.rad2deg(angle)
-        # Flip label if upside down
+        # Adjust rotation so text is readable
         if 90 < rotation < 270:
             rotation += 180
-        # Compute vertical offset (alternate +5 and +10 to reduce overlap)
-        offset = 8 + (idx % 2) * 5
-        label_offsets.append(offset)
+        # Position the value label slightly beyond bar top
         ax.text(
-            angle,
-            bar.get_height() + offset,
+            angle + width / 2,
+            bar.get_height() + 5,
             f"{val:.1f}",
             ha='center',
             va='center',
-            fontsize=9,
             rotation=rotation,
             rotation_mode='anchor',
-            color='black',
-            fontweight='bold'
-        )
-
-    # Add stat labels further out with smaller font and rotation adjusted
-    label_radius = 120
-    for angle, label in zip(angles, labels):
-        rotation = np.rad2deg(angle)
-        ha = 'center'
-        # Flip text for readability
-        if 90 < rotation < 270:
-            rotation += 180
-        ax.text(
-            angle,
-            label_radius,
-            label,
-            ha=ha,
-            va='center',
             fontsize=10,
-            rotation=rotation,
-            rotation_mode='anchor',
             fontweight='bold',
             color='black'
         )
 
+    # Add labels outside the outer circle
+    label_radius = 110
+    for angle, label in zip(angles, labels):
+        rotation = np.rad2deg(angle)
+        ha = 'center'
+        if 90 < rotation < 270:
+            rotation += 180
+        ax.text(
+            angle + width / 2,
+            label_radius,
+            label,
+            ha=ha,
+            va='center',
+            rotation=rotation,
+            rotation_mode='anchor',
+            fontsize=11,
+            fontweight='bold',
+            color='black'
+        )
+
+    # Remove default ticks
     ax.set_xticks([])
-    ax.set_yticks([25, 50, 75, 100])
-    ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.7, alpha=0.5)
     ax.spines['polar'].set_visible(False)
 
     plt.title(title, y=1.08, fontsize=14, fontweight='bold')
