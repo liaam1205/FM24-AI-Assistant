@@ -245,17 +245,16 @@ def plot_player_pizza(player_data, metrics,
         values.append(val_float)
 
     N = len(labels)
-    # Angles for bars
+    # Angles for bars, spread out with padding
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
-    # Bar width with spacing so bars don't touch
-    width = (2 * np.pi / N) * 0.5  
+    # Increase gap by reducing bar width further
+    width = (2 * np.pi / N) * 0.4  
 
-    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
     radii = [v / max_val * 100 for v in values]
 
-    # Draw bars with edge color and alpha
     bars = ax.bar(
         angles, 
         radii, 
@@ -265,55 +264,59 @@ def plot_player_pizza(player_data, metrics,
         alpha=0.8, 
         edgecolor='black', 
         linewidth=1.5,
-        align='edge'  # Align bars so there is space between them
+        align='center'  # center bars on angles for better spacing
     )
 
-    # Add value labels on bars slightly above each bar
-    for bar, angle, val in zip(bars, angles, values):
+    # Add value labels above bars with vertical offset to reduce overlap
+    label_offsets = []
+    for idx, (bar, angle, val) in enumerate(zip(bars, angles, values)):
         rotation = np.rad2deg(angle)
-        # Adjust label rotation for readability
-        if rotation >= 90 and rotation <= 270:
+        # Flip label if upside down
+        if 90 < rotation < 270:
             rotation += 180
+        # Compute vertical offset (alternate +5 and +10 to reduce overlap)
+        offset = 8 + (idx % 2) * 5
+        label_offsets.append(offset)
         ax.text(
-            angle + width/2,
-            bar.get_height() + 5,
+            angle,
+            bar.get_height() + offset,
             f"{val:.1f}",
             ha='center',
             va='center',
-            fontsize=10,
+            fontsize=9,
             rotation=rotation,
             rotation_mode='anchor',
             color='black',
             fontweight='bold'
         )
 
-    # Add stat labels outside bars, a bit farther
-    label_radius = 115
+    # Add stat labels further out with smaller font and rotation adjusted
+    label_radius = 120
     for angle, label in zip(angles, labels):
         rotation = np.rad2deg(angle)
         ha = 'center'
-        if rotation > 90 and rotation < 270:
+        # Flip text for readability
+        if 90 < rotation < 270:
             rotation += 180
         ax.text(
-            angle + width/2,
+            angle,
             label_radius,
             label,
             ha=ha,
             va='center',
-            fontsize=11,
+            fontsize=10,
             rotation=rotation,
             rotation_mode='anchor',
             fontweight='bold',
             color='black'
         )
 
-    # Set no ticks and hide polar spine
     ax.set_xticks([])
     ax.set_yticks([25, 50, 75, 100])
     ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.7, alpha=0.5)
     ax.spines['polar'].set_visible(False)
 
-    plt.title(title, y=1.1, fontsize=16, fontweight='bold')
+    plt.title(title, y=1.08, fontsize=14, fontweight='bold')
 
     st.pyplot(fig)
                           
