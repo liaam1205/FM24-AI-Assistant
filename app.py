@@ -19,105 +19,6 @@ Ask AI questions, get detailed player stats with radar charts, and search transf
 api_key = st.secrets["API_KEY"]
 client = openai.OpenAI(api_key=api_key)
 
-# --- File Upload ---
-st.sidebar.header("Upload Your FM24 Exported Files")
-squad_file = st.sidebar.file_uploader("Upload Squad HTML Export", type=["html", "htm"])
-transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", type=["html", "htm"])
-
-def parse_html(file) -> pd.DataFrame | None:
-    import streamlit as st
-    import pandas as pd
-    from bs4 import BeautifulSoup
-
-    try:
-        # Read file content (support bytes or string)
-        raw = file.read()
-        if isinstance(raw, bytes):
-            html = raw.decode("utf-8", errors="ignore")
-        else:
-            html = raw
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        # Find first <table>
-        table = soup.find("table")
-        if not table:
-            st.error("No table found in uploaded HTML file.")
-            return None
-
-        # Extract headers: Prefer thead > th, else first tr > th
-        thead = table.find("thead")
-        if thead:
-            header_cells = thead.find_all("th")
-        else:
-            first_tr = table.find("tr")
-            header_cells = first_tr.find_all("th") if first_tr else []
-
-        if not header_cells:
-            st.error("No table headers found in the uploaded file.")
-            return None
-
-        headers_raw = [th.get_text(strip=True) for th in header_cells]
-
-        # Map headers using your header_mapping dict; ignore unknown headers (None)
-        headers_mapped = [header_mapping.get(h, None) for h in headers_raw]
-
-        # Keep indices and names of valid headers only
-        valid_idx = [i for i, h in enumerate(headers_mapped) if h is not None]
-        valid_headers = [h for h in headers_mapped if h is not None]
-
-        if not valid_headers:
-            st.error("No recognizable columns found after header mapping.")
-            return None
-
-        # Extract rows
-        rows = []
-        trs = table.find_all("tr")
-
-        for tr in trs:
-            cells = tr.find_all("td")
-            if not cells or len(cells) < max(valid_idx) + 1:
-                # skip rows without enough columns
-                continue
-
-            # Extract only valid columns based on index
-            row = [cells[i].get_text(strip=True) if i < len(cells) else "" for i in valid_idx]
-
-            # Only add rows matching header length
-            if len(row) == len(valid_headers):
-                rows.append(row)
-
-        if not rows:
-            st.warning("No data rows found in the table.")
-            return None
-
-        # Create DataFrame
-        df = pd.DataFrame(rows, columns=valid_headers)
-
-        # Clean numeric columns: remove commas, %, convert to numeric safely
-        for col in df.columns:
-            if df[col].dtype == object:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
-                    .replace("", "0")  # Replace empty strings with zero for conversion
-                )
-            df[col] = pd.to_numeric(df[col], errors="ignore")
-
-        # Normalize position column if present
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
-        else:
-            df["Normalized Position"] = "Unknown"
-
-        return df
-
-    except Exception as e:
-        st.error(f"Failed to parse HTML file: {e}")
-        return None
-
 # --- Position Normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
@@ -153,7 +54,7 @@ def normalize_position(pos_str):
                 return position_aliases[alias_key]
     return "Unknown"
 
-# --- Position-based metrics for radar charts ---
+# --- Metrics for radar charts per position ---
 position_metrics = {
     "Goalkeeper": [
         "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
@@ -244,8 +145,7 @@ header_mapping = {
     "Svt": "Saves Tipped",
 }
 
-# --- Robust HTML parser function ---
-
+# --- HTML parsing function ---
 def parse_html(file) -> pd.DataFrame | None:
     try:
         html = file.read().decode("utf-8")
@@ -256,7 +156,7 @@ def parse_html(file) -> pd.DataFrame | None:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Headers extraction from thead or first row
+        # Extract headers from thead or first tr
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -269,10 +169,8 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-        # Map headers using mapping; None for unknown headers
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Filter only columns with valid headers
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
@@ -298,10 +196,10 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns - FIXED indentation & logic
+        # Clean numeric columns
         for col in df.columns:
             if col is None or col not in df:
-                continue  # skip unknown or invalid columns
+                continue
             if df[col].dtype == object:
                 df[col] = (
                     df[col]
@@ -323,11 +221,8 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
+# --- Plot player bar chart for key metrics ---
 def plot_player_barchart(player_row, metrics, player_name):
-    import streamlit as st
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     labels = [metric for metric in metrics if player_row.get(metric) not in ["N/A", None, ""]]
 
     def clean_value(val):
@@ -371,7 +266,8 @@ def plot_player_barchart(player_row, metrics, player_name):
 
     plt.tight_layout()
     st.pyplot(fig)
-                          
+
+# --- Generate AI scouting report ---
 def get_ai_scouting_report(player_name, player_data):
     prompt = f"""
 You are a football scouting expert. Based on the following player data, write a concise, insightful scouting report for {player_name}:
@@ -382,7 +278,7 @@ Focus on strengths, weaknesses, and potential.
 """
     try:
         response = client.chat.completions.create(
-            model="gpt 3.5 turbo",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert football scout."},
                 {"role": "user", "content": prompt}
@@ -393,3 +289,85 @@ Focus on strengths, weaknesses, and potential.
         return report
     except Exception as e:
         return f"Error generating AI scouting report: {e}"
+
+# --- Main UI ---
+
+st.header("Upload Squad and Transfer Files")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    squad_file = st.file_uploader("Upload FM24 Squad HTML Export", type=["html", "htm"])
+
+with col2:
+    transfer_file = st.file_uploader("Upload FM24 Transfer Market HTML Export", type=["html", "htm"])
+
+squad_df = None
+transfer_df = None
+
+if squad_file is not None:
+    squad_df = parse_html(squad_file)
+    if squad_df is not None:
+        st.success(f"Loaded Squad data with {len(squad_df)} players")
+        # Show squad preview
+        st.dataframe(squad_df.head(10))
+
+if transfer_file is not None:
+    transfer_df = parse_html(transfer_file)
+    if transfer_df is not None:
+        st.success(f"Loaded Transfer Market data with {len(transfer_df)} players")
+        # Show transfer preview
+        st.dataframe(transfer_df.head(10))
+
+# --- Squad Analysis ---
+if squad_df is not None:
+    st.header("Squad Player Details and AI Scouting")
+
+    player_names = squad_df["Name"].dropna().unique()
+    selected_player = st.selectbox("Select a player from squad", player_names)
+
+    if selected_player:
+        player_row = squad_df[squad_df["Name"] == selected_player].iloc[0]
+        st.subheader(f"Stats for {selected_player}")
+        metrics = position_metrics.get(player_row["Normalized Position"], position_metrics["Unknown"])
+        plot_player_barchart(player_row, metrics, selected_player)
+
+        if st.button("Generate AI Scouting Report"):
+            with st.spinner("Generating scouting report..."):
+                report = get_ai_scouting_report(selected_player, player_row)
+            st.markdown(f"**AI Scouting Report:**\n\n{report}")
+
+# --- Transfer Market Search ---
+if transfer_df is not None:
+    st.header("Transfer Market Player Search & Filter")
+
+    search_name = st.text_input("Search player by name")
+
+    positions = ["All"] + sorted(transfer_df["Normalized Position"].dropna().unique().tolist())
+    filter_position = st.selectbox("Filter by position", positions)
+
+    # Age slider limits
+    min_age_val = int(transfer_df["Age"].min())
+    max_age_val = int(transfer_df["Age"].max())
+
+    min_age, max_age = st.slider(
+        "Filter by Age",
+        min_value=min_age_val,
+        max_value=max_age_val,
+        value=(min_age_val, max_age_val),
+        step=1,
+    )
+
+    # Filter dataframe
+    filtered_df = transfer_df.copy()
+
+    if search_name:
+        filtered_df = filtered_df[filtered_df["Name"].str.contains(search_name, case=False, na=False)]
+
+    if filter_position != "All":
+        filtered_df = filtered_df[filtered_df["Normalized Position"] == filter_position]
+
+    filtered_df = filtered_df[(filtered_df["Age"] >= min_age) & (filtered_df["Age"] <= max_age)]
+
+    st.write(f"Found {len(filtered_df)} players matching filter criteria")
+    st.dataframe(filtered_df.reset_index(drop=True))
