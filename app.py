@@ -238,35 +238,28 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val_float = 0.0
         values.append(val_float)
 
-    # Close the loop for radar chart
     values += values[:1]
-
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(4.5, 4.5), subplot_kw=dict(polar=True))
 
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
 
-    # Draw one axis per variable + add labels
-    plt.xticks(angles[:-1], labels, color='black', size=12, weight='bold')
-
-    # Remove y-ticks and labels for minimal look
+    plt.xticks(angles[:-1], labels, color='black', size=13, weight='bold')  # slightly bigger font
     ax.set_yticklabels([])
     ax.set_yticks([])
 
-    # Draw the outline and fill
-    ax.plot(angles, values, color='deepskyblue', linewidth=2, linestyle='solid')
+    ax.plot(angles, values, color='deepskyblue', linewidth=1.5, linestyle='solid')
     ax.fill(angles, values, color='deepskyblue', alpha=0.25)
 
-    # Add a crisp grid with lighter lines
     ax.grid(color='lightgrey', linestyle='-', linewidth=0.7)
 
-    # Title in bold, centered with padding above
-    plt.title(title, size=16, weight='bold', color='deepskyblue', y=1.1)
+    plt.title(title, size=14, weight='bold', color='deepskyblue', y=1.05)
 
-    # Show plot using streamlit
+    plt.tight_layout(pad=2)  # add padding so labels don’t get cut off
+
     st.pyplot(fig)
 
 # --- AI Scouting Report ---
