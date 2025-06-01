@@ -70,22 +70,6 @@ raw_to_final_header = {
     "Clean Sheets": "Clean Sheets", "Svh": "Saves Held", "Svp": "Saves Parried", "Svt": "Saves Tipped"
 }
 
-def parse_currency(value):
-    if not isinstance(value, str):
-        return None
-    value = value.replace("£", "").replace(",", "").strip().upper()
-    multiplier = 1
-    if value.endswith("K"):
-        multiplier = 1_000
-        value = value[:-1]
-    elif value.endswith("M"):
-        multiplier = 1_000_000
-        value = value[:-1]
-    try:
-        return float(value) * multiplier
-    except:
-        return None
-
 def deduplicate_column_names(headers):
     seen = {}
     deduped = []
