@@ -363,23 +363,23 @@ if selected_player:
     player_row = filtered_squad[filtered_squad["Name"] == selected_player].iloc[0]
     st.subheader(f"Player: {selected_player}")
 
-        # Basic info
-        cols = st.columns(3)
-        cols[0].write(f"**Age:** {player_row['Age']}")
-        cols[1].write(f"**Position:** {player_row['Position']}")
-        cols[2].write(f"**Potential:** {player_row['Potential']}")
+    # Basic info
+    cols = st.columns(3)
+    cols[0].write(f"**Age:** {player_row['Age']}")
+    cols[1].write(f"**Position:** {player_row['Position']}")
+    cols[2].write(f"**Potential:** {player_row['Potential']}")
 
-        # Radar / bar chart metrics
-        pos = player_row["Normalized Position"] if "Normalized Position" in player_row else "Unknown"
-        metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        st.markdown("### Key Stats")
-        plot_player_barchart(player_row, metrics, selected_player)
+    # Radar / bar chart metrics
+    pos = player_row["Normalized Position"] if "Normalized Position" in player_row else "Unknown"
+    metrics = position_metrics.get(pos, position_metrics["Unknown"])
+    st.markdown("### Key Stats")
+    plot_player_barchart(player_row, metrics, selected_player)
 
-        # AI scouting report button
-        if st.button("Get AI Scouting Report", key="squad_ai_report"):
-            with st.spinner("Generating AI report..."):
-                report = get_ai_report(selected_player, filtered_squad)
-                st.markdown(f"**AI Report:**\n\n{report}")
+    # AI scouting report button
+if st.button("Get AI Scouting Report", key="squad_ai_report"):
+    with st.spinner("Generating AI report..."):
+        report = get_ai_report(selected_player, filtered_squad)
+        st.markdown(f"**AI Report:**\n\n{report}")
 
 # --- Transfer market search ---
 if transfer_df is not None:
