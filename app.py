@@ -198,23 +198,23 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-try:
-    # Clean numeric columns
-    for col in df.columns:
-        if col is None or col not in df:
-            continue  # skip unknown or invalid columns
-        if df[col].dtype == object:
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace(",", "", regex=False)
-                .str.replace("%", "", regex=False)
-            )
-            try:
-                # Use 'coerce' to avoid deprecated 'ignore'
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            except Exception as conv_error:
-                st.warning(f"Could not convert column '{col}' to numeric: {conv_error}")
+    try:
+        # Clean numeric columns
+        for col in df.columns:
+            if col is None or col not in df:
+                continue  # skip unknown or invalid columns
+            if df[col].dtype == object:
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace(",", "", regex=False)
+                    .str.replace("%", "", regex=False)
+                )
+                try:
+                    # Use 'coerce' to avoid deprecated 'ignore'
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                except Exception as conv_error:
+                    st.warning(f"Could not convert column '{col}' to numeric: {conv_error}")
 
     # Normalize positions
     if "Position" in df.columns:
