@@ -310,7 +310,6 @@ if squad_df is not None:
     st.subheader("Squad Overview")
     st.dataframe(
         squad_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]]
-        .sort_values(by="Current Ability", ascending=False)
     )
 
     player_name = st.selectbox("Select Player for Detailed View", squad_df["Name"].tolist())
