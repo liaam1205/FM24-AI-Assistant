@@ -404,16 +404,15 @@ if transfer_df is not None:
 
     transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
 
-    if transfer_search:
-        filtered = filtered[
-            filtered["Name"].str.contains(transfer_search, case=False, na=False) |
-            filtered["Club"].str.contains(transfer_search, case=False, na=False)
-        ]
+if transfer_df is not None:
+    st.subheader("Transfer Market Overview")
 
-        if not filtered.empty:
-            # Only fix column names if we filtered the table
-            filtered.columns = make_unique_columns(list(filtered.columns))
-            st.dataframe(filtered)
+    # Show full sorted transfer market
+    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(
+        by="Current Ability", ascending=False
+    )
+
+    st.dataframe(filtered)
 
     # === Player Detail Section ===
     if not filtered.empty:
@@ -430,6 +429,6 @@ if transfer_df is not None:
             st.write(f"**Current Ability:** {player_row['Current Ability']}")
             st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
 
-            # Optional chart
+            # Optional: Uncomment if you want the radar/pizza chart
             # plot_pizza_chart(player_row)
             
