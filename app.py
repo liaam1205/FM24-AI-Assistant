@@ -98,41 +98,57 @@ def deduplicate_column_names(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
-def parse_html(file):
-    try:
-        # Read HTML tables from the uploaded file
-        df_list = pd.read_html(file, encoding="utf-8")
-        df = df_list[0]
+def parse_html(file) -> pd.DataFrame:
+    import pandas as pd
 
-        # Clean column names
-        df.columns = [str(col).strip() for col in df.columns]
+    # Read HTML file into DataFrame
+    dfs = pd.read_html(file)
+    df = dfs[0]
 
-        # Remove duplicate columns (but keep first occurrence)
-        df = df.loc[:, ~pd.Index(df.columns).duplicated(keep='first')]
+    # Remove duplicate columns if any
+    df = df.loc[:, ~df.columns.duplicated()]
 
-        # Columns that should retain original text formatting
-        keep_as_text = [
-            "Name", "Information", "Club", "Position", "Nationality", "Preferred Foot",
-            "Transfer Value", "Wage", "Contract Expiry", "Personality", "Media Handling",
-            "Height", "Weight", "Best Position", "Second Nationality"
-        ]
+    # Clean numeric columns (except columns like Name, Position, Club)
+    numeric_cols = [
+        "Age", "Potential", "Current Ability", "Potential Ability",
+        "Transfer Value", "Wage", "Assists", "Goals", "Expected Goals per 90 Minutes",
+        "Expected Goals Overperformance", "Expected Assists", "Key Passes",
+        "Dribbles Made", "Pass Completion Ratio", "Interceptions", "Headers Won",
+        "Tackle Completion Ratio", "Save Ratio", "Clean Sheets", "Saves Held",
+        "Saves Parried", "Saves Tipped"
+    ]
 
-        # Try to preserve these columns if they exist
-        keep_as_text = [col for col in keep_as_text if col in df.columns]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str).apply(lambda x: x.replace(",", "").replace("%", "").strip())
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Apply cleaning to only numeric/statistical columns
-        for col in df.columns:
-            if col not in keep_as_text:
-                df[col] = df[col].astype(str).apply(
-                    lambda x: x.replace(",", "").replace("%", "").strip()
-                )
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Generate 'Normalized Position' from 'Position' column
+    if "Position" in df.columns:
+        def normalize_position(pos):
+            pos = str(pos).upper()
+            if "GK" in pos:
+                return "Goalkeeper"
+            elif "CB" in pos or "DC" in pos:
+                return "Centre Back"
+            elif "FB" in pos or "WB" in pos or "DL" in pos or "DR" in pos:
+                return "Full Back"
+            elif "DM" in pos:
+                return "Defensive Midfielder"
+            elif "CM" in pos:
+                return "Central Midfielder"
+            elif "AM" in pos:
+                return "Attacking Midfielder"
+            elif "ST" in pos or "CF" in pos:
+                return "Striker"
+            elif "W" in pos:
+                return "Winger"
+            else:
+                return "Other"
+        
+        df["Normalized Position"] = df["Position"].apply(normalize_position)
 
-        return df
-
-    except Exception as e:
-        st.error(f"Error parsing file: {e}")
-        return pd.DataFrame()
+    return df
 
 # --- VISUALIZATION ---
 def plot_player_barchart(player_row, metrics, player_name):
