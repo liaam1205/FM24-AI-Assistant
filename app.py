@@ -3,7 +3,6 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import openai
 import matplotlib.pyplot as plt
-import numpy as np
 
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -46,11 +45,10 @@ position_aliases = {
 def normalize_position(pos_str):
     if not isinstance(pos_str, str):
         return "Unknown"
-    positions = [p.strip() for p in pos_str.split(",")]
+    positions = [p.strip().upper().replace(" ", "") for p in pos_str.split(",")]
     for pos in positions:
-        pos_clean = pos.upper().replace(" ", "")
         for alias_key in position_aliases:
-            if alias_key.replace(" ", "") == pos_clean:
+            if alias_key.replace(" ", "").upper() == pos:
                 return position_aliases[alias_key]
     return "Unknown"
 
@@ -147,15 +145,17 @@ header_mapping = {
 
 # --- Robust HTML parser function ---
 def parse_html(file) -> pd.DataFrame | None:
+    if file is None:
+        return None
     try:
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, 'html.parser')
-
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
+        # Find headers
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -170,6 +170,7 @@ def parse_html(file) -> pd.DataFrame | None:
         headers_raw = [th.get_text(strip=True) for th in header_cells]
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
+        # Valid headers and their indices
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
@@ -179,7 +180,6 @@ def parse_html(file) -> pd.DataFrame | None:
             cells = tr.find_all("td")
             if len(cells) == 0:
                 continue  # skip header or empty rows
-
             row = []
             for i in valid_cols_idx:
                 if i < len(cells):
@@ -195,6 +195,9 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
+        # Drop duplicate columns if any
+        df = df.loc[:,~df.columns.duplicated()]
+
         # Clean numeric columns safely
         for col in df.columns:
             if col is None:
@@ -205,7 +208,6 @@ def parse_html(file) -> pd.DataFrame | None:
                     errors="coerce"
                 )
             except Exception:
-                # Not numeric, skip conversion
                 pass
 
         if "Position" in df.columns:
@@ -294,24 +296,27 @@ st.sidebar.header("Upload Your Files")
 squad_file = st.sidebar.file_uploader("Upload Squad HTML file", type=["html", "htm"])
 transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
 
-df_squad = parse_html(squad_file) if squad_file else None
-df_transfer = parse_html(transfer_file) if transfer_file else None
+df_squad = parse_html(squad_file)
+df_transfer = parse_html(transfer_file)
 
 # --- Show Squad Data + Player Selection + Chart ---
-if df_squad is not None:
+if df_squad is not None and not df_squad.empty:
     st.subheader("Squad Players")
     player_names = df_squad["Name"].drop_duplicates().tolist()
-    selected_player = st.selectbox("Select a player from Squad:", player_names)
-
-    if selected_player:
-        player_row = df_squad[df_squad["Name"] == selected_player].iloc[0]
-        pos = player_row.get("Normalized Position", "Unknown")
-        metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        plot_player_barchart(player_row, metrics, selected_player)
-
-        with st.expander("AI Scouting Report"):
-            report = get_ai_scouting_report(selected_player, player_row)
-            st.write(report)
+    if player_names:
+        selected_player = st.selectbox("Select a player from Squad:", player_names)
+        if selected_player:
+            filtered = df_squad[df_squad["Name"] == selected_player]
+            if not filtered.empty:
+                player_row = filtered.iloc[0]
+                pos = player_row.get("Normalized Position", "Unknown")
+                metrics = position_metrics.get(pos, position_metrics["Unknown"])
+                plot_player_barchart(player_row, metrics, selected_player)
+                with st.expander("AI Scouting Report"):
+                    report = get_ai_scouting_report(selected_player, player_row)
+                    st.write(report)
+            else:
+                st.warning("Selected
 
 # --- Show Transfer Market Data + Player Selection + Chart ---
 if df_transfer is not None:
@@ -328,3 +333,16 @@ if df_transfer is not None:
         with st.expander("AI Scouting Report"):
             report = get_ai_scouting_report(selected_transfer_player, player_row)
             st.write(report)
+
+# --- Message when no files uploaded ---
+if (df_squad is None and squad_file is None) and (df_transfer is None and transfer_file is None):
+    st.info("Please upload Squad and/or Transfer Market HTML files using the sidebar to begin analysis.")
+
+# --- Footer or credits ---
+st.markdown("---")
+st.markdown(
+    """
+    Developed with ❤️ for Football Manager 2024 enthusiasts.  
+    Powered by OpenAI GPT and Streamlit.
+    """
+)
