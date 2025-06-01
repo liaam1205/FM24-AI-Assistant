@@ -313,56 +313,6 @@ if squad_df is None and transfer_df is None:
 if squad_df is not None:
     st.header("Your Squad Overview")
 
-    # Filter options
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    # Drop NaNs before calculating min and max for age
-    valid_ages = transfer_df["Age"].dropna()
-    if not valid_ages.empty:
-        age_min = int(valid_ages.min())
-        age_max = int(valid_ages.max())
-        age_filter_tr = st.slider("Age Filter", min_value=age_min, max_value=age_max, value=(age_min, age_max))
-    else:
-        st.warning("No valid age data available for filtering.")
-        age_filter_tr = (18, 35)  # sensible default range
-
-with col2:
-    # Handle Potential Ability filter with safe min/max
-    potential_min = int(squad_df['Potential'].min()) if not squad_df['Potential'].isna().all() else 0
-    potential_max = int(squad_df['Potential'].max()) if not squad_df['Potential'].isna().all() else 100
-    ability_filter = st.slider(
-        "Filter by Potential Ability",
-        min_value=potential_min,
-        max_value=potential_max,
-        value=(potential_min, potential_max)
-    )
-
-with col3:
-    # Position filter with "All" option
-    positions = ["All"] + sorted(squad_df["Normalized Position"].dropna().unique().tolist())
-    selected_position = st.selectbox("Filter by Position", positions)
-
-# Apply filters to squad dataframe
-filtered_squad = squad_df[
-    (squad_df['Age'] >= age_filter_tr[0]) &
-    (squad_df['Age'] <= age_filter_tr[1]) &
-    (squad_df['Potential'] >= ability_filter[0]) &
-    (squad_df['Potential'] <= ability_filter[1])
-]
-
-if selected_position != "All":
-    filtered_squad = filtered_squad[filtered_squad["Normalized Position"] == selected_position]
-
-st.write(f"Players matching filters: {len(filtered_squad)}")
-
-player_names = filtered_squad["Name"].tolist()
-selected_player = st.selectbox("Select a player to view details:", player_names)
-
-if selected_player:
-    player_row = filtered_squad[filtered_squad["Name"] == selected_player].iloc[0]
-    st.subheader(f"Player: {selected_player}")
-
     # Basic info
     cols = st.columns(3)
     cols[0].write(f"**Age:** {player_row['Age']}")
