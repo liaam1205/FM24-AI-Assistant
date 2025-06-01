@@ -225,7 +225,7 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_pizza(player_data, metrics, player_name, player_color='mediumseagreen'):
+def plot_player_radar(player_data, metrics, player_name, player_color='mediumseagreen'):
     import matplotlib.pyplot as plt
     import numpy as np
     import streamlit as st
@@ -242,30 +242,31 @@ def plot_player_pizza(player_data, metrics, player_name, player_color='mediumsea
         values.append(val_float)
 
     N = len(metrics)
+    values += values[:1]  # repeat first value to close the loop
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
-    values += values[:1]
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))  # Small chart
+    # Plot
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
 
-    # Plot
+    # Radar line and fill
     ax.plot(angles, values, color=player_color, linewidth=2)
-    ax.fill(angles, values, color=player_color, alpha=0.4)
+    ax.fill(angles, values, color=player_color, alpha=0.25)
 
-    # Add labels
-    for i, (angle, metric, value) in enumerate(zip(angles, metrics + [metrics[0]], values)):
+    # Labels and values
+    for i, (angle, label, val) in enumerate(zip(angles, metrics + [metrics[0]], values)):
         angle_deg = np.degrees(angle)
-        alignment = 'left' if 90 < angle_deg < 270 else 'right'
-        ax.text(angle, max(values) * 1.05, metric, size=7, ha='center', va='bottom', weight='bold', color='black')
-        ax.text(angle, max(values) * 0.92, f"{value:.1f}", size=7, ha='center', va='top', color='black')
+        ha = 'left' if 90 < angle_deg < 270 else 'right'
+        ax.text(angle, max(values) * 1.05, label, size=7, ha='center', va='bottom', weight='bold')
+        ax.text(angle, max(values) * 0.92, f"{val:.1f}", size=7, ha='center', va='top')
 
     ax.set_xticks([])
     ax.set_yticks([])
     ax.spines['polar'].set_visible(False)
 
-    plt.title(f"{player_name}", fontsize=12, weight='bold', pad=20)
+    plt.title(player_name, fontsize=12, weight='bold', pad=20)
     st.pyplot(fig)
                           
 # --- AI Scouting Report ---
@@ -343,10 +344,10 @@ if squad_df is not None:
         info_df = pd.DataFrame.from_dict(player_info, orient="index", columns=["Value"])
         st.table(info_df)
 
-        # Pizza Chart
+        # Radar Chart
         pos = player_row["Normalized Position"]
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
+        plot_player_radar(player_row, metrics, selected_player)
 
         # AI Scouting Report
         if st.button("Generate AI Scouting Report"):
