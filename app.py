@@ -85,6 +85,22 @@ def deduplicate_headers(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
+def parse_currency(value):
+    if not isinstance(value, str):
+        return None
+    value = value.replace("£", "").replace(",", "").strip().upper()
+    multiplier = 1
+    if value.endswith("K"):
+        multiplier = 1_000
+        value = value[:-1]
+    elif value.endswith("M"):
+        multiplier = 1_000_000
+        value = value[:-1]
+    try:
+        return float(value) * multiplier
+    except:
+        return None
+
 # --- PARSE HTML FUNCTION ---
 def parse_html(file) -> pd.DataFrame | None:
     try:
@@ -107,10 +123,12 @@ def parse_html(file) -> pd.DataFrame | None:
         df.columns = df.columns.str.strip()
         df["Normalized Position"] = df["Position"].apply(normalize_position) if "Position" in df.columns else "Unknown"
 
-        for col in df.columns:
-            if col not in ["Name", "Club", "Position", "Normalized Position"]:
-                df[col] = df[col].str.replace(",", "").str.replace("%", "").str.strip()
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+for col in df.columns:
+    if col in ["Transfer Value", "Wage"]:
+        df[col] = df[col].apply(parse_currency)
+    elif col not in ["Name", "Club", "Position", "Normalized Position"]:
+        df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
         return df
     except Exception as e:
