@@ -335,29 +335,11 @@ if st.button("Get AI Scouting Report", key="squad_ai_report"):
 if transfer_df is not None:
     st.header("Transfer Market")
 
-    # Filters for transfer market
-    tr_col1, tr_col2, tr_col3 = st.columns(3)
-    with tr_col1:
-        age_filter_tr = st.slider("Age Filter", min_value=int(transfer_df['Age'].min()), max_value=int(transfer_df['Age'].max()), value=(int(transfer_df['Age'].min()), int(transfer_df['Age'].max())))
-    with tr_col2:
-        value_filter = st.slider("Max Transfer Value (in thousands)", min_value=0, max_value=int(transfer_df['Transfer Value'].max()), value=int(transfer_df['Transfer Value'].max()))
-    with tr_col3:
-        positions_tr = ["All"] + sorted(transfer_df["Normalized Position"].dropna().unique().tolist())
-        selected_position_tr = st.selectbox("Position Filter", positions_tr, key="transfer_pos_filter")
-
-    filtered_transfer = transfer_df[
-        (transfer_df['Age'] >= age_filter_tr[0]) &
-        (transfer_df['Age'] <= age_filter_tr[1]) &
-        (transfer_df['Transfer Value'] <= value_filter)
-    ]
-
-    if selected_position_tr != "All":
-        filtered_transfer = filtered_transfer[filtered_transfer["Normalized Position"] == selected_position_tr]
-
-    st.write(f"Players available: {len(filtered_transfer)}")
+    # No filters here, just show total players
+    st.write(f"Players available: {len(transfer_df)}")
 
     # Show top 10 transfer players sorted by Potential Ability desc
-    top_transfer = filtered_transfer.sort_values(by="Potential", ascending=False).head(10)
+    top_transfer = transfer_df.sort_values(by="Potential", ascending=False).head(10)
 
     for idx, row in top_transfer.iterrows():
         st.markdown(f"### {row['Name']} ({row['Club']})")
