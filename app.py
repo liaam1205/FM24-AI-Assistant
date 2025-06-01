@@ -422,4 +422,24 @@ if transfer_df is not None:
 
             # Optional: Uncomment if you want the radar/pizza chart
             # plot_pizza_chart(player_row)
+# --- Player Detail Section ---
+
+# Ensure 'filtered' is defined already from your Transfer Market section
+selected_player = st.selectbox("Select a player to view details", filtered["Name"])
+
+if selected_player:
+    player_data = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
+
+    st.markdown(f"### {selected_player} - Player Details")
+
+    # Display Pizza Chart (assuming you have a function for this)
+    st.markdown("#### Performance Overview (Pizza Chart)")
+    draw_pizza_chart(player_data)  # Replace with your actual chart function
+
+    # AI Scout Report button
+    if st.button("Generate AI Scout Report"):
+        with st.spinner("Generating report..."):
+            report = generate_scout_report(player_data)  # Your custom function
+            st.markdown("#### AI Scout Report")
+            st.markdown(report)
             
