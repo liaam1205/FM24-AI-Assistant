@@ -361,7 +361,9 @@ if squad_df is not None:
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
 
-filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
+filtered = transfer_df[
+    ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
+].sort_values(by="Current Ability", ascending=False)
 
 st.dataframe(filtered)
 
