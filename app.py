@@ -247,7 +247,7 @@ def plot_player_pizza(player_data, metrics,
     N = len(labels)
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
 
-    fig, ax = plt.subplots(figsize=(3, 3), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(1.5, 1.5), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
 
@@ -272,16 +272,18 @@ def plot_player_pizza(player_data, metrics,
     # Setup gridlines & ticks with subtle style
     grid_vals = [20, 40, 60, 80, 100]
     ax.set_yticks(grid_vals)
-    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=7, color='gray')
+    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=5, color='gray')
     ax.yaxis.grid(True, color='lightgray', linestyle='--', linewidth=0.5)
     ax.set_ylim(0, 110)
 
     # Hide angular ticks
     ax.set_xticks([])
 
-    # Add stat labels outside bars with rotation to avoid overlap
+    # Add stat labels and numerical values below each label
     label_radius = 110
-    for angle, label in zip(angles, labels):
+    value_radius = 95  # slightly closer to center than labels
+
+    for angle, label, val in zip(angles, labels, values):
         rotation = np.rad2deg(angle)
         align = 'left'
         rotation_text = rotation
@@ -289,6 +291,7 @@ def plot_player_pizza(player_data, metrics,
             rotation_text += 180
             align = 'right'
 
+        # Stat label
         ax.text(
             angle,
             label_radius,
@@ -297,30 +300,27 @@ def plot_player_pizza(player_data, metrics,
             va='center',
             rotation=rotation_text,
             rotation_mode='anchor',
-            fontsize=7,
+            fontsize=6,
             fontweight='bold',
             color='black'
         )
-
-    # Add value labels inside bars near the base to avoid clutter
-    for bar, val, angle in zip(bars, values, angles):
-        height = bar.get_height()
+        # Numerical value below label
         ax.text(
             angle,
-            height * 0.2,
+            value_radius,
             f"{val:.1f}",
-            ha='center',
+            ha=align,
             va='center',
-            fontsize=7,
-            color='white',
-            fontweight='bold',
-            rotation=0
+            rotation=rotation_text,
+            rotation_mode='anchor',
+            fontsize=5,
+            color='dimgray'
         )
 
     # Remove polar spine and ticks for cleaner look
     ax.spines['polar'].set_visible(False)
 
-    plt.title(title, y=1.08, fontsize=10, fontweight='bold')
+    plt.title(title, y=1.08, fontsize=8, fontweight='bold')
 
     st.pyplot(fig)
                           
