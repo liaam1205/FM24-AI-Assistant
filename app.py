@@ -410,3 +410,20 @@ if transfer_df is not None:
         filtered.columns = make_unique_columns(list(filtered.columns))
 
         st.dataframe(filtered)
+
+if not filtered.empty:
+    player_names = filtered["Name"].unique().tolist()
+    selected_player = st.selectbox("Select a player to view details", player_names)
+
+    if selected_player:
+        player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
+
+        st.markdown(f"### Player Details: {player_row['Name']}")
+        st.write(f"**Club:** {player_row['Club']}")
+        st.write(f"**Position:** {player_row['Position']}")
+        st.write(f"**Age:** {player_row['Age']}")
+        st.write(f"**Current Ability:** {player_row['Current Ability']}")
+        st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+
+        # Plot pizza chart or other visuals if available
+        # plot_pizza_chart(player_row)
