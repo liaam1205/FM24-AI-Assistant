@@ -316,7 +316,7 @@ if df_squad is not None and not df_squad.empty:
                     report = get_ai_scouting_report(selected_player, player_row)
                     st.write(report)
             else:
-                st.warning("Selected
+                st.warning("Selected player not found")
 
 # --- Show Transfer Market Data + Player Selection + Chart ---
 if df_transfer is not None:
