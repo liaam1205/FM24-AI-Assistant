@@ -6,6 +6,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
+# --- Check for lxml dependency ---
+try:
+    import lxml  # noqa: F401
+    lxml_installed = True
+except ImportError:
+    lxml_installed = False
+    st.error(
+        """
+        The **`lxml`** library is required to parse HTML files but is not installed.
+
+        Please install it by running this command in your environment:
+
+        ```
+        pip install lxml
+        ```
+
+        Then restart the app.
+        """
+    )
+
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
@@ -158,27 +178,21 @@ header_mapping = {
 }
 
 def parse_html_with_pandas(file) -> pd.DataFrame | None:
-    if file is None:
+    if file is None or not lxml_installed:
         return None
     try:
         file.seek(0)
         html = file.read().decode("utf-8")
-        # Let pandas parse all tables
         dfs = pd.read_html(html, encoding='utf-8')
         if not dfs:
             st.error("No tables found in the HTML file.")
             return None
-        # Choose the largest table by row count
         df = max(dfs, key=lambda d: d.shape[0])
-        # Handle multi-level columns
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = [' '.join(col).strip() for col in df.columns.values]
-        # Rename columns using header_mapping (case-insensitive)
         df.rename(columns={orig: header_mapping[orig] for orig in header_mapping if orig in df.columns}, inplace=True)
-        # Drop blank rows/columns
         df.dropna(how='all', axis=0, inplace=True)
         df.dropna(how='all', axis=1, inplace=True)
-        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
