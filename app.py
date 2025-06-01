@@ -145,20 +145,19 @@ header_mapping = {
 }
 
 # --- Robust HTML parser function ---
-
 def parse_html(file) -> pd.DataFrame | None:
     try:
-        # Read and decode the uploaded file content
+        if file is None:
+            return None
+
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
-        # Find the first table
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Extract headers from thead or first row
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -171,15 +170,11 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-
-        # Map headers using header_mapping dict (you must have this defined globally)
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Get indices and valid headers where mapping exists
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
-        # Extract data rows from the table
         rows = []
         for tr in table.find_all("tr"):
             cells = tr.find_all("td")
@@ -199,16 +194,11 @@ def parse_html(file) -> pd.DataFrame | None:
             st.warning("No data rows found in the table.")
             return None
 
-        # Create DataFrame
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns safely
         for col in df.columns:
-            # Skip non-numeric or key text columns
             if col in ["Name", "Club", "Position", "Normalized Position"]:
                 continue
-
-            # Remove commas and percentage signs, strip whitespace
             df[col] = (
                 df[col]
                 .astype(str)
@@ -216,11 +206,8 @@ def parse_html(file) -> pd.DataFrame | None:
                 .str.replace("%", "", regex=False)
                 .str.strip()
             )
-
-            # Convert to numeric, coerce errors to NaN
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Normalize positions into a new column
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -234,7 +221,7 @@ def parse_html(file) -> pd.DataFrame | None:
 
 # --- Plotting function ---
 def plot_player_barchart(player_row, metrics, player_name):
-    labels = [metric for metric in metrics if player_row.get(metric) not in [None, "", "N/A"]]
+    labels = [metric for metric in metrics if player_row.get(metric) not in [None, "", "N/A", np.nan]]
 
     def clean_value(val):
         if isinstance(val, str):
@@ -312,7 +299,6 @@ df_transfer = parse_html(transfer_file)
 # --- Show Squad Data + Player Selection + Chart ---
 if df_squad is not None and not df_squad.empty:
     st.subheader("Squad Players")
-    # Display top 10 rows preview
     st.dataframe(df_squad.head(10))
 
     player_names = df_squad["Name"].dropna().drop_duplicates().tolist()
@@ -336,7 +322,6 @@ if df_squad is not None and not df_squad.empty:
 # --- Show Transfer Market Data + Player Selection + Chart ---
 if df_transfer is not None and not df_transfer.empty:
     st.subheader("Transfer Market Players")
-    # Display top 10 rows preview
     st.dataframe(df_transfer.head(10))
 
     transfer_player_names = df_transfer["Name"].dropna().drop_duplicates().tolist()
@@ -365,7 +350,4 @@ if (df_squad is None or df_squad.empty) and (df_transfer is None or df_transfer.
 st.markdown("---")
 st.markdown(
     """
-    Developed with ❤️ for Football Manager 2024 enthusiasts.  
-    Powered by OpenAI GPT and Streamlit.
-    """
-)
+    Developed with ❤️ for Football Manager 2024 enthusiasts
