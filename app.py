@@ -156,7 +156,6 @@ def parse_html(file) -> pd.DataFrame | None:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Headers extraction
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -171,7 +170,6 @@ def parse_html(file) -> pd.DataFrame | None:
         headers_raw = [th.get_text(strip=True) for th in header_cells]
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Filter columns with valid headers
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
@@ -197,21 +195,19 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns
+        # Clean numeric columns safely
         for col in df.columns:
-            if col is None or col not in df:
+            if col is None:
                 continue
-            if df[col].dtype == object:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
+            try:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str).str.replace(",", "").str.replace("%", ""),
+                    errors="coerce"
                 )
-            # Convert numeric columns, coercing errors to NaN to avoid errors
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            except Exception:
+                # Not numeric, skip conversion
+                pass
 
-        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
