@@ -102,38 +102,35 @@ def parse_currency(value):
         return None
 
 # --- PARSE HTML FUNCTION ---
-def parse_html(file) -> pd.DataFrame | None:
+def parse_html(file):
     try:
-        html = file.read().decode("utf-8")
-        soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table")
-        if not table:
-            st.error("No table found.")
-            return None
-
-        headers = [th.get_text(strip=True) for th in table.find_all("th")]
-        headers = deduplicate_headers([header_mapping.get(h, h) for h in headers])
-        rows = []
-        for tr in table.find_all("tr")[1:]:
-            tds = tr.find_all("td")
-            if len(tds) == len(headers):
-                rows.append([td.get_text(strip=True) for td in tds])
-
-        df = pd.DataFrame(rows, columns=headers)
-        df.columns = df.columns.str.strip()
-        df["Normalized Position"] = df["Position"].apply(normalize_position) if "Position" in df.columns else "Unknown"
-
-for col in df.columns:
-    if col in ["Transfer Value", "Wage"]:
-        df[col] = df[col].apply(parse_currency)
-    elif col not in ["Name", "Club", "Position", "Normalized Position"]:
-        df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        return df
+        tables = pd.read_html(file, flavor="lxml")
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
-        return None
+        return pd.DataFrame()
+
+    # Find the table with the most relevant columns
+    df = max(tables, key=lambda t: len(set(t.columns) & set(METRIC_MAPPING.keys())))
+
+    # Ensure no duplicate columns
+    df = df.loc[:, ~df.columns.duplicated()]
+
+    # Rename columns based on metric mapping
+    df = df.rename(columns=METRIC_MAPPING)
+
+    # Normalize position names
+    if "Position" in df.columns:
+        df["Normalized Position"] = df["Position"].apply(normalize_position)
+
+    # Clean and convert numeric data
+    for col in df.columns:
+        if col in ["Transfer Value", "Wage"]:
+            df[col] = df[col].apply(parse_currency)
+        elif col not in ["Name", "Club", "Position", "Normalized Position"]:
+            df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    return df
 
 # --- BAR CHART ---
 def plot_player_barchart(player_row, metrics, player_name):
