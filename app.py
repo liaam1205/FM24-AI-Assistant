@@ -247,8 +247,8 @@ def plot_player_pizza(player_data, metrics,
     N = len(labels)
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
 
-    # Smaller figure size here:
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    # Smaller figure size: 2x2 inches
+    fig, ax = plt.subplots(figsize=(2, 2), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
 
@@ -268,7 +268,7 @@ def plot_player_pizza(player_data, metrics,
         bottom=0,
         color=player_color,
         edgecolor='black',
-        linewidth=1,
+        linewidth=0.7,
         alpha=0.85,
         align='edge'
     )
@@ -276,8 +276,8 @@ def plot_player_pizza(player_data, metrics,
     # Grid lines and labels smaller font
     grid_vals = [0, 25, 50, 75, 100]
     ax.set_yticks(grid_vals)
-    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=6)
-    ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=4)
+    ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.3, alpha=0.5)
 
     # Value text inside bars - smaller font
     for bar, angle, val, height in zip(bars, angles, values, radii):
@@ -292,7 +292,7 @@ def plot_player_pizza(player_data, metrics,
             va='center',
             rotation=rotation,
             rotation_mode='anchor',
-            fontsize=7,
+            fontsize=5,
             fontweight='bold',
             color='white'
         )
@@ -311,7 +311,7 @@ def plot_player_pizza(player_data, metrics,
             va='center',
             rotation=rotation,
             rotation_mode='anchor',
-            fontsize=7,
+            fontsize=5,
             fontweight='bold',
             color='black'
         )
@@ -319,7 +319,7 @@ def plot_player_pizza(player_data, metrics,
     ax.set_xticks([])
     ax.spines['polar'].set_visible(False)
 
-    plt.title(title, y=1.05, fontsize=10, fontweight='bold')
+    plt.title(title, y=1.05, fontsize=8, fontweight='bold')
 
     st.pyplot(fig)
                           
