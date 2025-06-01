@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import openai
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 # --- App Config ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -15,45 +16,57 @@ Ask AI questions, get detailed player stats with radar/bar charts, and search tr
 """
 )
 
+# --- Sidebar Instructions ---
+with st.sidebar:
+    st.header("Instructions")
+    st.write(
+        """
+1. Upload your **Squad** and/or **Transfer Market** HTML export files.  
+2. Switch between **Squad** and **Transfer Market** tabs below.  
+3. Search/select a player to view detailed stats and AI scouting report.  
+4. Expand the sections for charts and reports.
+"""
+    )
+    st.markdown("---")
+
 # --- OpenAI API Key ---
 api_key = st.secrets["API_KEY"]
-client = openai.OpenAI(api_key=api_key)
+openai.api_key = api_key
 
 # --- Position Normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
-    "D (C)": "Centre Back",
-    "D (L)": "Fullback",
-    "D (R)": "Fullback",
-    "WB (L)": "Wingback",
-    "WB (R)": "Wingback",
+    "D(C)": "Centre Back",
+    "D(L)": "Fullback",
+    "D(R)": "Fullback",
+    "WB(L)": "Wingback",
+    "WB(R)": "Wingback",
     "DM": "Defensive Midfielder",
-    "M (C)": "Central Midfielder",
+    "M(C)": "Central Midfielder",
     "MC": "Central Midfielder",
     "AM": "Attacking Midfielder",
-    "AM (C)": "Attacking Midfielder",
-    "M (L)": "Wide Midfielder",
-    "M (R)": "Wide Midfielder",
-    "AM (L)": "Inside Forward",
-    "AM (R)": "Inside Forward",
+    "AM(C)": "Attacking Midfielder",
+    "M(L)": "Wide Midfielder",
+    "M(R)": "Wide Midfielder",
+    "AM(L)": "Inside Forward",
+    "AM(R)": "Inside Forward",
     "IF": "Inside Forward",
-    "ST (C)": "Striker",
+    "ST(C)": "Striker",
     "FW": "Forward",
     "CF": "Complete Forward",
     "WF": "Wide Forward",
 }
 
-def normalize_position(pos_str):
+def normalize_position(pos_str: str) -> str:
     if not isinstance(pos_str, str):
         return "Unknown"
-    positions = [p.strip().upper().replace(" ", "") for p in pos_str.split(",")]
+    positions = [p.strip().upper().replace(" ", "").replace(")", "").replace("(", "") for p in pos_str.split(",")]
     for pos in positions:
-        for alias_key in position_aliases:
-            if alias_key.replace(" ", "").upper() == pos:
-                return position_aliases[alias_key]
+        if pos in position_aliases:
+            return position_aliases[pos]
     return "Unknown"
 
-# --- Position-based metrics for radar/bar charts ---
+# --- Position-based metrics for charts ---
 position_metrics = {
     "Goalkeeper": [
         "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
@@ -113,7 +126,7 @@ position_metrics = {
     ]
 }
 
-# --- Header mapping for consistent column names ---
+# --- Header mapping for unique column names ---
 header_mapping = {
     "Inf": "Information",
     "Name": "Name",
@@ -144,21 +157,20 @@ header_mapping = {
     "Svt": "Saves Tipped",
 }
 
-# --- Robust HTML parser function ---
-
 def parse_html(file) -> pd.DataFrame | None:
+    if file is None:
+        return None
     try:
-        # Read and decode the uploaded file content
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
-        # Find the first table
+        # Find table
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Extract headers from thead or first row
+        # Headers
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -171,21 +183,17 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-
-        # Map headers using header_mapping dict (you must have this defined globally)
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Get indices and valid headers where mapping exists
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
-        # Extract data rows from the table
+        # Rows
         rows = []
         for tr in table.find_all("tr"):
             cells = tr.find_all("td")
-            if len(cells) == 0:
-                continue  # skip header or empty rows
-
+            if not cells:
+                continue
             row = []
             for i in valid_cols_idx:
                 if i < len(cells):
@@ -199,14 +207,15 @@ def parse_html(file) -> pd.DataFrame | None:
             st.warning("No data rows found in the table.")
             return None
 
-        # Create DataFrame
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns safely
+        # Remove duplicate columns
+        df = df.loc[:, ~df.columns.duplicated()]
+
+        # Clean numeric columns
         for col in df.columns:
-            if col in ["Name", "Club", "Position", "Normalized Position"]:
+            if col in ["Name", "Club", "Position", "Information", "Normalized Position"]:
                 continue
-            # Only proceed if df[col] is a Series (single column)
             if isinstance(df[col], pd.Series):
                 df[col] = (
                     df[col]
@@ -216,10 +225,8 @@ def parse_html(file) -> pd.DataFrame | None:
                     .str.strip()
                 )
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-            else:
-                st.warning(f"Skipping cleaning column '{col}' as it is not a Series.")
 
-        # Normalize positions into a new column
+        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -231,10 +238,8 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-# --- Plotting function ---
-def plot_player_barchart(player_row, metrics, player_name):
-    labels = [metric for metric in metrics if player_row.get(metric) not in [None, "", "N/A", np.nan]]
-
+def plot_player_barchart(player_row: pd.Series, metrics: list[str], player_name: str):
+    labels = [m for m in metrics if pd.notnull(player_row.get(m)) and player_row.get(m) not in ["", "N/A"]]
     def clean_value(val):
         if isinstance(val, str):
             val = val.replace("%", "")
@@ -243,32 +248,35 @@ def plot_player_barchart(player_row, metrics, player_name):
         except:
             return 0.0
 
-    values = [clean_value(player_row[metric]) for metric in labels]
+    values = [clean_value(player_row[m]) for m in labels]
 
     if not labels or not values:
         st.warning("Not enough data to create bar chart.")
         return
 
     fig, ax = plt.subplots(figsize=(5, 0.4 * len(labels) + 1))
-    bars = ax.barh(labels, values, color='tab:blue', alpha=0.8)
+    bars = ax.barh(labels, values, color='tab:blue', alpha=0.85)
 
     for bar in bars:
-        offset = max(bar.get_width() * 0.02, 0.3)
+        width = bar.get_width()
+        offset = max(width * 0.02, 0.3)
+        text_color = "white" if width > plt.xlim()[1] * 0.1 else "black"
         ax.text(
-            bar.get_width() + offset,
+            width + offset,
             bar.get_y() + bar.get_height() / 2,
-            f"{bar.get_width():.1f}",
+            f"{width:.1f}",
             va='center',
             fontsize=8,
-            color='white'
+            color=text_color,
+            fontweight='bold'
         )
 
-    ax.set_title(player_name, fontsize=12, pad=10)
+    ax.set_title(f"Key Stats for {player_name}", fontsize=14, pad=12)
     ax.set_xlabel("Value", fontsize=10)
     ax.set_facecolor("none")
     fig.patch.set_alpha(0)
-    ax.tick_params(axis='y', labelsize=9, colors='black')
-    ax.tick_params(axis='x', labelsize=8, colors='black')
+    ax.tick_params(axis='y', labelsize=10, colors='black')
+    ax.tick_params(axis='x', labelsize=9, colors='black')
 
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -277,8 +285,7 @@ def plot_player_barchart(player_row, metrics, player_name):
     plt.tight_layout()
     st.pyplot(fig)
 
-# --- AI scouting report function ---
-def get_ai_scouting_report(player_name, player_data):
+def get_ai_scouting_report(player_name: str, player_data: pd.Series) -> str:
     prompt = f"""
 You are a football scouting expert. Based on the following player data, write a concise, insightful scouting report for {player_name}:
 
@@ -287,79 +294,123 @@ You are a football scouting expert. Based on the following player data, write a 
 Focus on strengths, weaknesses, and potential.
 """
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert football scout."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=300,
-        )
-        report = response.choices[0].message.content.strip()
-        return report
+        with st.spinner("Generating AI scouting report..."):
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an expert football scout."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=300,
+            )
+            report = response.choices[0].message.content.strip()
+            time.sleep(0.5)
+            return report
     except Exception as e:
         return f"Error generating AI scouting report: {e}"
 
 # --- Upload Section ---
-st.sidebar.header("Upload Your Files")
-squad_file = st.sidebar.file_uploader("Upload Squad HTML file", type=["html", "htm"])
-transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
+with st.sidebar:
+    squad_file = st.file_uploader("Upload Squad HTML file", type=["html", "htm"])
+    transfer_file = st.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
 
-df_squad = parse_html(squad_file)
-df_transfer = parse_html(transfer_file)
+df_squad = parse_html(squad_file) if squad_file else None
+df_transfer = parse_html(transfer_file) if transfer_file else None
 
-# --- Show Squad Data + Player Selection + Chart ---
-if df_squad is not None and not df_squad.empty:
-    st.subheader("Squad Players")
-    st.dataframe(df_squad.head(10))
+# --- Tabs for Squad and Transfer Market ---
+tab1, tab2 = st.tabs(["🏟️ Squad", "🌍 Transfer Market"])
 
-    player_names = df_squad["Name"].dropna().drop_duplicates().tolist()
-    if player_names:
-        selected_player = st.selectbox("Select a player from Squad:", player_names)
+def player_selector(df: pd.DataFrame, label: str) -> str | None:
+    player_names = df["Name"].dropna().drop_duplicates().tolist()
+    search = st.text_input(f"Search {label} player by name")
+    if search:
+        filtered = [p for p in player_names if search.lower() in p.lower()]
+    else:
+        filtered = player_names
+    if filtered:
+        return st.selectbox(f"Select {label} player", filtered)
+    else:
+        st.info(f"No {label} players found matching '{search}'.")
+        return None
+
+with tab1:
+    st.header("Squad Players")
+    if df_squad is not None and not df_squad.empty:
+        st.dataframe(df_squad.head(15))
+        selected_player = player_selector(df_squad, "Squad")
         if selected_player:
             filtered_squad = df_squad[df_squad["Name"] == selected_player]
             if not filtered_squad.empty:
                 player_row = filtered_squad.iloc[0]
                 pos = player_row.get("Normalized Position", "Unknown")
                 metrics = position_metrics.get(pos, position_metrics["Unknown"])
-                plot_player_barchart(player_row, metrics, selected_player)
-                with st.expander("AI Scouting Report"):
+
+                # Display top metrics
+                cols = st.columns(4)
+                stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
+                for i, stat in enumerate(stat_list[:4]):
+                    with cols[i]:
+                        val = player_row.get(stat)
+                        if pd.notna(val):
+                            st.metric(label=stat, value=f"{val}")
+                        else:
+                            st.metric(label=stat, value="N/A")
+
+                # Player stats chart
+                with st.expander(f"Player Stats Chart for {selected_player}"):
+                    plot_player_barchart(player_row, metrics, selected_player)
+
+                # AI scouting report
+                with st.expander(f"AI Scouting Report for {selected_player}"):
                     report = get_ai_scouting_report(selected_player, player_row)
                     st.write(report)
             else:
                 st.warning(f"No data found for squad player: {selected_player}")
     else:
-        st.info("No valid player names found in squad data.")
+        st.info("Please upload a Squad HTML file to view squad players.")
 
-# --- Show Transfer Market Data + Player Selection + Chart ---
-if df_transfer is not None and not df_transfer.empty:
-    st.subheader("Transfer Market Players")
-    st.dataframe(df_transfer.head(10))
-
-    if "Name" in df_transfer.columns:
-        transfer_player_names = df_transfer["Name"].dropna().drop_duplicates().tolist()
-    else:
-        transfer_player_names = []
-
-    if transfer_player_names:
-        selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
+with tab2:
+    st.header("Transfer Market Players")
+    if df_transfer is not None and not df_transfer.empty:
+        st.dataframe(df_transfer.head(15))
+        selected_transfer_player = player_selector(df_transfer, "Transfer Market")
         if selected_transfer_player:
             filtered_transfer = df_transfer[df_transfer["Name"] == selected_transfer_player]
             if not filtered_transfer.empty:
                 player_row = filtered_transfer.iloc[0]
                 pos = player_row.get("Normalized Position", "Unknown")
                 metrics = position_metrics.get(pos, position_metrics["Unknown"])
-                plot_player_barchart(player_row, metrics, selected_transfer_player)
-                with st.expander("AI Scouting Report"):
+
+                cols = st.columns(4)
+                stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
+                for i, stat in enumerate(stat_list[:4]):
+                    with cols[i]:
+                        val = player_row.get(stat)
+                        if pd.notna(val):
+                            st.metric(label=stat, value=f"{val}")
+                        else:
+                            st.metric(label=stat, value="N/A")
+
+                with st.expander(f"Player Stats Chart for {selected_transfer_player}"):
+                    plot_player_barchart(player_row, metrics, selected_transfer_player)
+
+                with st.expander(f"AI Scouting Report for {selected_transfer_player}"):
                     report = get_ai_scouting_report(selected_transfer_player, player_row)
                     st.write(report)
             else:
                 st.warning(f"No data found for transfer player: {selected_transfer_player}")
     else:
-        st.info("No valid player names found in transfer market data.")
+        st.info("Please upload a Transfer Market HTML file to view players.")
 
-# --- Inform user if no data loaded ---
+# --- Inform user if no data loaded in either tab ---
 if (df_squad is None or df_squad.empty) and (df_transfer is None or df_transfer.empty):
-    st.info("Please upload Squad and/or Transfer Market HTML files using the sidebar to begin analysis.")
+    st.info("Upload Squad and/or Transfer Market HTML files using the sidebar to begin.")
 
-st.markdown("Developed with ❤️ for Football Manager 2024 enthusiasts.\nPowered by OpenAI GPT and Streamlit.")
+# --- Footer ---
+st.markdown("---")
+st.markdown(
+    """
+    Developed with ❤️ for Football Manager 2024 enthusiasts.  
+    Powered by OpenAI GPT and Streamlit.
+    """
+)
