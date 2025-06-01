@@ -334,13 +334,22 @@ if st.button("Get AI Scouting Report", key="squad_ai_report"):
 # --- Transfer market search ---
 if transfer_df is not None:
     st.header("Transfer Market")
+st.write(f"Players available: {len(transfer_df)}")
 
-    # No filters here, just show total players
-    st.write(f"Players available: {len(transfer_df)}")
+# Loop through all players in the transfer dataframe
+for idx, row in transfer_df.iterrows():
+    st.markdown(f"### {row['Name']} ({row['Club']})")
+    cols = st.columns(3)
+    cols[0].write(f"Age: {row.get('Age', 'N/A')}")
+    cols[1].write(f"Position: {row.get('Position', 'Unknown')}")
+    cols[2].write(f"Value: £{row.get('Value', 0):,}")
 
-    # Show bar chart for transfer player
-    metrics_tr = position_metrics.get(pos_tr, position_metrics["Unknown"])
-    plot_player_barchart(row, metrics_tr, row['Name'])
+    # Get metrics based on position
+    pos_tr = row.get("Position", "Unknown")
+    metrics_tr = position_metrics.get(pos_tr, position_metrics.get("Unknown", []))
+
+    # Plot the radar/bar chart
+    plot_player_barchart(row, metrics_tr, row["Name"])
 
 # Optional: AI report button (commented to avoid too many calls)
 if st.button(f"Get AI Report for {row['Name']}", key=f"transfer_ai_report_{idx}_{row['Name']}"):
