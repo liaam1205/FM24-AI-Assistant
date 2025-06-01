@@ -391,7 +391,7 @@ if transfer_df is not None and not transfer_df.empty:
             pos = player_row.get("Normalized Position", "Unknown")
             metrics = position_metrics.get(pos, position_metrics["Unknown"])
             st.markdown("#### Performance Overview (Pizza Chart)")
-           plot_player_barchart(player_row, metrics, player_name)
+            plot_player_barchart(player_row, metrics, player_name)
 
             # AI Scout Report
             if st.button("Generate AI Scout Report for Transfer Player"):
