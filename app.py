@@ -441,14 +441,14 @@ else:
     pos = player_row.get("Normalized Position", "Unknown")
     metrics = position_metrics.get(pos, position_metrics["Unknown"])
     st.markdown("#### Performance Overview (Pizza Chart)")
-        plot_player_barchart(player_row, metrics, selected_player)
+    plot_player_barchart(player_row, metrics, selected_player)
 
-            # AI Scout Report
-            if st.button("Generate AI Scout Report for Transfer Player"):
-                with st.spinner("Generating report..."):
-                    report = get_ai_scouting_report(selected_player, player_row)
-                st.markdown("#### AI Scout Report")
-                st.markdown(report)
+    # AI Scout Report
+if st.button("Generate AI Scout Report for Transfer Player"):
+    with st.spinner("Generating report..."):
+    report = get_ai_scouting_report(selected_player, player_row)
+    st.markdown("#### AI Scout Report")
+    st.markdown(report)
 
 else:
     st.warning("No transfer data available.")
