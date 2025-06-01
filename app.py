@@ -338,7 +338,6 @@ if transfer_df is not None:
     # No filters here, just show total players
     st.write(f"Players available: {len(transfer_df)}")
     
-    st.markdown(f"### {row['Name']} ({row['Club']})")
     cols = st.columns(3)
     cols[0].write(f"Age: {row['Age']}")
     cols[1].write(f"Position: {row['Position']}")
