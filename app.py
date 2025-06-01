@@ -198,7 +198,6 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-    try:
         # Clean numeric columns
         for col in df.columns:
             if col is None or col not in df:
@@ -216,17 +215,17 @@ def parse_html(file) -> pd.DataFrame | None:
                 except Exception as conv_error:
                     st.warning(f"Could not convert column '{col}' to numeric: {conv_error}")
 
-    # Normalize positions
-    if "Position" in df.columns:
-        df["Normalized Position"] = df["Position"].apply(normalize_position)
-    else:
-        df["Normalized Position"] = "Unknown"
+        # Normalize positions
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        else:
+            df["Normalized Position"] = "Unknown"
 
-    return df
+        return df
 
-except Exception as e:
-    st.error(f"Error parsing HTML: {e}")
-    return None
+    except Exception as e:
+        st.error(f"Error parsing HTML: {e}")
+        return None
 
 # --- Plot bar chart for player stats ---
 def plot_player_barchart(player_row, metrics, player_name):
