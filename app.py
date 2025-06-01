@@ -393,6 +393,13 @@ def clean_and_extract_metrics(player_row):
 
     return metrics
 
+import streamlit as st
+import matplotlib.pyplot as plt
+
+# Initialize variables to avoid NameError later
+selected_player = None
+player_row = None
+
 # --- Main Interface for Transfer Market ---
 if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
@@ -466,14 +473,6 @@ if transfer_df is not None and not transfer_df.empty:
                 st.pyplot(fig)
             else:
                 st.info("No performance metrics available for this player.")
-
-            # --- AI Scout Report Button & Report ---
-            if st.button("Generate AI Scout Report for Transfer Player"):
-                with st.spinner("Generating report..."):
-                    report = get_ai_scouting_report(selected_player, player_row)
-                    st.markdown("#### AI Scout Report")
-                    st.markdown(report)
-
         else:
             st.info("Please select a player to see details.")
     else:
@@ -481,10 +480,16 @@ if transfer_df is not None and not transfer_df.empty:
 else:
     st.error("Transfer DataFrame is empty or not loaded.")
 
-# If you want to use selected_player or player_row after this block, check they exist:
+
+# If you want to use selected_player or player_row after this block, safely check:
 if selected_player is not None and player_row is not None:
-    # your code here that uses selected_player or player_row
-    pass
+    # Example: Using selected_player and player_row for other purposes like AI scout report
+    if st.button("Generate AI Scout Report for Transfer Player"):
+        with st.spinner("Generating report..."):
+            report = get_ai_scouting_report(selected_player, player_row)
+            st.markdown("#### AI Scout Report")
+            st.markdown(report)
+
             # Bar Chart for Transfer Market Player
     pos = player_row.get("Normalized Position", "Unknown")
     metrics = position_metrics.get(pos, position_metrics["Unknown"])
