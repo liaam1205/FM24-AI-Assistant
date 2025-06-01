@@ -227,7 +227,16 @@ def parse_html(file) -> pd.DataFrame | None:
 
 def plot_player_radar(player_row, metrics, player_name):
     labels = [metric for metric in metrics if player_row.get(metric) not in ["N/A", None, ""]]
-    values = [float(player_row[metric]) for metric in labels]
+
+def clean_value(val):
+    if isinstance(val, str) and "%" in val:
+        val = val.replace("%", "")
+    try:
+        return float(val)
+    except:
+        return 0.0
+
+values = [clean_value(player_data[metric]) for metric in labels]
 
     num_vars = len(labels)
 
