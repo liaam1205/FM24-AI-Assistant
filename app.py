@@ -338,9 +338,6 @@ if transfer_df is not None:
     # No filters here, just show total players
     st.write(f"Players available: {len(transfer_df)}")
 
-    # Show top 10 transfer players sorted by Potential Ability desc
-    top_transfer = transfer_df.sort_values(by="Potential", ascending=False).head(10)
-
     for idx, row in top_transfer.iterrows():
         st.markdown(f"### {row['Name']} ({row['Club']})")
         cols = st.columns(3)
