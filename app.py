@@ -384,7 +384,7 @@ else:
     st.warning("No transfer data available.")
 
         # Pizza Chart for Transfer Market Player
-        pos = player_row["Normalized Position"]
+    pos = player_row["Normalized Position"]
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
         st.markdown("#### Performance Overview (Pizza Chart)")
         plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
