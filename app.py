@@ -336,6 +336,76 @@ def plot_compare_players_pizza(player1_data, player2_data, metrics,
     plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
     st.pyplot(fig)
+
+def plot_player_pizza(player_data, metrics, 
+                      player_color='mediumseagreen',
+                      title="Player Performance"):
+    labels = metrics
+    values = []
+
+    for m in metrics:
+        val = player_data.get(m, 0)
+        if isinstance(val, str):
+            val = val.replace(",", "").replace("%", "")
+        try:
+            val_float = float(val)
+        except (ValueError, TypeError):
+            val_float = 0.0
+        values.append(val_float)
+
+    N = len(labels)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    width = (2 * np.pi / N) * 0.6
+
+    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
+
+    max_val = max(values) if max(values) > 0 else 1
+    radii = [v / max_val * 100 for v in values]
+
+    bars = ax.bar(angles, radii, width=width, bottom=0.0,
+                  color=player_color, alpha=0.7, edgecolor='black')
+
+    # Add value labels on bars
+    for bar, angle, val in zip(bars, angles, values):
+        rotation = np.rad2deg(angle)
+        ax.text(
+            angle,
+            bar.get_height() + 4,
+            f"{val:.1f}",
+            ha='center',
+            va='center',
+            fontsize=9,
+            rotation=rotation,
+            rotation_mode='anchor',
+            color=player_color,
+            fontweight='bold'
+        )
+
+    # Stat labels outside
+    label_radius = 110
+    for angle, label in zip(angles, labels):
+        rotation = np.rad2deg(angle)
+        ax.text(
+            angle,
+            label_radius,
+            label,
+            ha='center',
+            va='center',
+            fontsize=10,
+            rotation=rotation,
+            rotation_mode='anchor',
+            fontweight='bold',
+            color='black'
+        )
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['polar'].set_visible(False)
+    ax.grid(False)
+
+    plt.title(title, y=1.1, fontsize=14, fontweight='bold')
+
+    st.pyplot(fig)
     
 # --- AI Scouting Report ---
 def get_ai_scouting_report(player_name, player_data):
