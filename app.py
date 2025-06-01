@@ -365,20 +365,32 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# --- Function to clean and extract numeric performance metrics from player row ---
 def clean_and_extract_metrics(player_row):
     """
-    Extracts numeric metrics from a player's data row (pandas Series).
-    Filters out non-numeric columns and returns a dict of metric_name: value.
+    Extract performance metrics from a player's data row.
+    Use an explicit list of metric columns.
     """
+    metric_columns = [
+        "Goals",
+        "Assists",
+        "Pass Completion Ratio",
+        "Tackles",
+        "Interceptions",
+        "Key Passes",
+        "Dribbles Made",
+        "Expected Goals per 90 Minutes",
+        "Expected Assists",
+        "Tackle Completion Ratio",
+        # add any other relevant metric columns you have
+    ]
+
     metrics = {}
-    for col, val in player_row.items():
-        if isinstance(val, (int, float)) and not pd.isna(val):
-            # You can add more logic here to exclude irrelevant numeric columns if needed
-            metrics[col] = val
-    # Optionally remove some columns that are not performance metrics (like Age)
-    for exclude_col in ["Age", "Current Ability", "Potential Ability"]:
-        metrics.pop(exclude_col, None)
+    for col in metric_columns:
+        if col in player_row and pd.notna(player_row[col]):
+            val = player_row[col]
+            if isinstance(val, (int, float)):
+                metrics[col] = val
+
     return metrics
 
 # --- Main Interface for Transfer Market ---
