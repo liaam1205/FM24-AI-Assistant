@@ -28,6 +28,12 @@ transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", t
 squad_df = parse_html(squad_file) if squad_file else None
 transfer_df = parse_html(transfer_file) if transfer_file else None
 
+uploaded_file = st.file_uploader("Upload Squad HTML file", type=["html"])
+if uploaded_file:
+    df_squad = parse_html(uploaded_file)
+    if df_squad is not None:
+        st.write(df_squad)
+
 # --- Position Normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
