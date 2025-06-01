@@ -204,18 +204,18 @@ def parse_html(file) -> pd.DataFrame | None:
         # Drop duplicate columns if any
         df = df.loc[:, ~df.columns.duplicated()]
 
-        # Clean numeric columns safely
-        for col in df.columns:
-            if col is None:
-                continue
-            try:
-                df[col] = pd.to_numeric(
-                    df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False),
-                    errors="coerce"
-                )
-            except Exception:
-                # Non-numeric column, skip conversion
-                pass
+        # Clean numeric-looking columns (leave out text fields like Name, Club, Position)
+for col in df.columns:
+    if col in ["Name", "Club", "Position", "Normalized Position"]:
+        continue
+    df[col] = (
+        df[col]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("%", "", regex=False)
+        .str.strip()
+    )
+    df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # Normalize positions
         if "Position" in df.columns:
