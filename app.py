@@ -156,7 +156,6 @@ def parse_html(file) -> pd.DataFrame | None:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Headers extraction from thead or first row
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -169,12 +168,28 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-        # Map headers using mapping; None for unknown headers
-        headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Filter only columns with valid headers
-        valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
-        valid_headers = [h for h in headers if h is not None]
+        # Map headers to normalized names
+        headers_mapped = []
+        seen = set()
+        for h in headers_raw:
+            mapped = header_mapping.get(h, None)
+            if mapped is None:
+                # Keep original header if no mapping
+                mapped = h
+            # Make unique by appending suffix if needed
+            if mapped in seen:
+                count = 1
+                new_mapped = f"{mapped}_{count}"
+                while new_mapped in seen:
+                    count += 1
+                    new_mapped = f"{mapped}_{count}"
+                mapped = new_mapped
+            seen.add(mapped)
+            headers_mapped.append(mapped)
+
+        valid_cols_idx = [i for i, h in enumerate(headers_mapped) if h is not None]
+        valid_headers = [h for h in headers_mapped if h is not None]
 
         rows = []
         trs = table.find_all("tr")
@@ -198,7 +213,7 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns - FIXED dtype access with hasattr check
+        # Convert numeric columns
         for col in df.columns:
             if col is None or col not in df:
                 continue
