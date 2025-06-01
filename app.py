@@ -225,7 +225,7 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_barchart(player_row, metrics, player_name):
+def plot_player_barchart(player_row, metrics, selected_player):
     import streamlit as st
     import matplotlib.pyplot as plt
     import numpy as np
@@ -352,7 +352,7 @@ if squad_df is not None:
         # Radar Chart
         pos = player_row["Normalized Position"]
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        plot_player_barchart(player_row, metrics, player_name)
+        plot_player_barchart(player_row, metrics, selected_player)
 
         # AI Scouting Report
         if st.button("Generate AI Scouting Report"):
