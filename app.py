@@ -101,14 +101,14 @@ def deduplicate_column_names(headers):
 def parse_html(file) -> pd.DataFrame:
     import pandas as pd
 
-    # Read HTML file into DataFrame
+    # Read all tables from HTML, take the first one (assuming the main table)
     dfs = pd.read_html(file)
     df = dfs[0]
 
-    # Remove duplicate columns if any
+    # Remove duplicate columns (keep first occurrence)
     df = df.loc[:, ~df.columns.duplicated()]
 
-    # Clean numeric columns (except columns like Name, Position, Club)
+    # Define columns that should be treated as numeric if present
     numeric_cols = [
         "Age", "Potential", "Current Ability", "Potential Ability",
         "Transfer Value", "Wage", "Assists", "Goals", "Expected Goals per 90 Minutes",
@@ -118,12 +118,15 @@ def parse_html(file) -> pd.DataFrame:
         "Saves Parried", "Saves Tipped"
     ]
 
+    # Clean and convert numeric columns
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = df[col].astype(str).apply(lambda x: x.replace(",", "").replace("%", "").strip())
+            # Remove commas, percent signs and whitespace
+            df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
+            # Convert to numeric, coercing errors to NaN
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Generate 'Normalized Position' from 'Position' column
+    # Normalize positions into broad categories
     if "Position" in df.columns:
         def normalize_position(pos):
             pos = str(pos).upper()
@@ -145,9 +148,10 @@ def parse_html(file) -> pd.DataFrame:
                 return "Winger"
             else:
                 return "Other"
-        
+
         df["Normalized Position"] = df["Position"].apply(normalize_position)
 
+    # Return the fully parsed DataFrame with all columns intact
     return df
 
 # --- VISUALIZATION ---
