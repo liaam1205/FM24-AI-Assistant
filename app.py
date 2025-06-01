@@ -379,6 +379,10 @@ if transfer_df is not None and not transfer_df.empty:
         if selected_player:
             player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
 
+    # Display Transfer Value and Wage
+            transfer_value = player_row.get("Transfer Value", "N/A")
+            wage = player_row.get("Wage", "N/A")
+            
             st.markdown(f"### Player Details: {player_row['Name']}")
             st.write(f"**Club:** {player_row['Club']}")
             st.write(f"**Position:** {player_row['Position']}")
