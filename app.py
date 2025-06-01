@@ -19,6 +19,15 @@ Ask AI questions, get detailed player stats with radar charts, and search transf
 api_key = st.secrets["API_KEY"]
 client = openai.OpenAI(api_key=api_key)
 
+# --- File Upload ---
+st.sidebar.header("Upload Your FM24 Exported Files")
+squad_file = st.sidebar.file_uploader("Upload Squad HTML Export", type=["html", "htm"])
+transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", type=["html", "htm"])
+
+# Parse files if uploaded
+squad_df = parse_html(squad_file) if squad_file else None
+transfer_df = parse_html(transfer_file) if transfer_file else None
+
 # --- Position Normalization ---
 position_aliases = {
     "GK": "Goalkeeper",
