@@ -393,7 +393,7 @@ if transfer_df is not None and not transfer_df.empty:
             st.markdown(f"**Transfer Value:** {transfer_value}")
             st.markdown(f"**Wage:** {wage}")
 
-            # Display all available numeric performance metrics for the player in a chart
+# Display all available numeric performance metrics for the player in a chart
 import matplotlib.pyplot as plt
 
 # Clean and extract numeric performance metrics
@@ -430,7 +430,8 @@ if all_metrics:
     # Add value labels to the right of bars
     for i, bar in enumerate(bars):
         width = bar.get_width()
-        ax.text(width + 0.5, bar.get_y() + bar.get_height()/2, f"{width:.2f}", va='center', fontsize=7)
+        ax.text(width + 0.5, bar.get_y() + bar.get_height() / 2, f"{width:.2f}", 
+                va='center', fontsize=7)
 
     st.pyplot(fig)
 else:
