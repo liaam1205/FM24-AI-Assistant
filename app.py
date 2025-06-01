@@ -3,7 +3,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import numpy as np
-import openai
+from openai import OpenAI
 
 # --- STREAMLIT PAGE CONFIG ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -175,16 +175,19 @@ def get_ai_scouting_report(name, player_row):
 
     prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {name} based on the following stats:\n\n{stats}\n\nHighlight strengths, weaknesses, and role suitability."""
     
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert football scout."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=300
-        )
-        return response.choices[0].message.content.strip()
+from openai import OpenAI
+
+client = OpenAI(api_key=api_key)
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are an expert football scout."},
+        {"role": "user", "content": prompt}
+    ],
+    max_tokens=300
+)
+return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
