@@ -225,14 +225,12 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_pizza(player_data, metrics, player_name,
-                      player_color='mediumseagreen'):
+def plot_player_pizza(player_data, metrics, player_name, player_color='mediumseagreen'):
     import matplotlib.pyplot as plt
     import numpy as np
+    import streamlit as st
 
-    labels = metrics
     values = []
-
     for m in metrics:
         val = player_data.get(m, 0)
         if isinstance(val, str):
@@ -243,77 +241,32 @@ def plot_player_pizza(player_data, metrics, player_name,
             val_float = 0.0
         values.append(val_float)
 
-    N = len(labels)
-    angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    N = len(metrics)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(1.5, 1.5), subplot_kw=dict(polar=True), facecolor='none')
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))  # Small chart
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
 
-    max_val = max(values) if max(values) > 0 else 1
-    normalized = [v / max_val * 100 for v in values]
+    # Plot
+    ax.plot(angles, values, color=player_color, linewidth=2)
+    ax.fill(angles, values, color=player_color, alpha=0.4)
 
-    width = 2 * np.pi / N * 0.7
-    bar_bottom = 0
-
-    bars = ax.bar(
-        angles,
-        normalized,
-        width=width,
-        bottom=bar_bottom,
-        color=player_color,
-        edgecolor='black',
-        linewidth=0.8,
-        alpha=0.8,
-        align='center'
-    )
-
-    grid_vals = [20, 40, 60, 80, 100]
-    ax.set_yticks(grid_vals)
-    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=5, color='gray')
-    ax.yaxis.grid(True, color='lightgray', linestyle='--', linewidth=0.5)
-    ax.set_ylim(0, 110)
+    # Add labels
+    for i, (angle, metric, value) in enumerate(zip(angles, metrics + [metrics[0]], values)):
+        angle_deg = np.degrees(angle)
+        alignment = 'left' if 90 < angle_deg < 270 else 'right'
+        ax.text(angle, max(values) * 1.05, metric, size=7, ha='center', va='bottom', weight='bold', color='black')
+        ax.text(angle, max(values) * 0.92, f"{value:.1f}", size=7, ha='center', va='top', color='black')
 
     ax.set_xticks([])
-
-    label_radius = 110
-    value_radius = 85  # increased gap from label to value (was 95 before)
-
-    for angle, label, val in zip(angles, labels, values):
-        rotation = np.rad2deg(angle)
-        align = 'left'
-        rotation_text = rotation
-        if rotation > 90 and rotation < 270:
-            rotation_text += 180
-            align = 'right'
-
-        ax.text(
-            angle,
-            label_radius,
-            label,
-            ha=align,
-            va='center',
-            rotation=rotation_text,
-            rotation_mode='anchor',
-            fontsize=6,
-            fontweight='bold',
-            color='black'
-        )
-        ax.text(
-            angle,
-            value_radius,
-            f"{val:.1f}",
-            ha=align,
-            va='center',
-            rotation=rotation_text,
-            rotation_mode='anchor',
-            fontsize=5,
-            color='dimgray'
-        )
-
+    ax.set_yticks([])
     ax.spines['polar'].set_visible(False)
 
-    plt.title(player_name, y=1.08, fontsize=8, fontweight='bold', color='black')
-
-    st.pyplot(fig, transparent=True)
+    plt.title(f"{player_name}", fontsize=12, weight='bold', pad=20)
+    st.pyplot(fig)
                           
 # --- AI Scouting Report ---
 def get_ai_scouting_report(player_name, player_data):
@@ -431,7 +384,7 @@ if transfer_df is not None and not transfer_df.empty:
             pos = player_row.get("Normalized Position", "Unknown")
             metrics = position_metrics.get(pos, position_metrics["Unknown"])
             st.markdown("#### Performance Overview (Pizza Chart)")
-            plot_player_pizza(player_data, metrics, player_name, player_color='mediumseagreen')
+            plot_player_pizza(player_row, metrics, selected_player)
 
             # AI Scout Report
             if st.button("Generate AI Scout Report for Transfer Player"):
