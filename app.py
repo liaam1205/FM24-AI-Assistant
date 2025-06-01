@@ -225,17 +225,15 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_pizza(player_data, metrics, title="Player Pizza Chart"):
-    import numpy as np
-    import matplotlib.pyplot as plt
-
+def plot_player_pizza(player_data, metrics, title="Player Performance"):
     labels = metrics
     values = []
+
     for m in metrics:
         val = player_data.get(m)
-        # Check if the value is a string that might contain commas or percentage signs
+
+        # Clean value (handle %, commas, etc.)
         if isinstance(val, str):
-            # Remove commas and "%" from the string
             val = val.replace(",", "").replace("%", "")
         try:
             val_float = float(val)
@@ -244,37 +242,35 @@ def plot_player_pizza(player_data, metrics, title="Player Pizza Chart"):
         values.append(val_float)
 
     N = len(labels)
-    theta = np.linspace(0.0, 2 * np.pi, N, endpoint=False)  # starting angles for each slice
-    width = 2 * np.pi / N * 0.8  # width of each slice; adjust 0.8 to change spacing
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    values += values[:1]  # loop back to the start
+    angles += angles[:1]  # loop back to the start
 
-    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    # Plot setup
+    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
 
-    # Create bars for the pizza chart
-    bars = ax.bar(theta, values, width=width, bottom=0.0, color='orange', alpha=0.75, edgecolor='darkorange')
+    # Remove default gridlines and radial ticks
+    ax.set_yticklabels([])
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=9, color="black")
 
-    # Add labels for each slice
-    for i, bar in enumerate(bars):
-        angle = theta[i]
-        # Determine alignment based on angle for better readability
-        alignment = "left" if (angle < np.pi/2 or angle > 3*np.pi/2) else "right"
-        # Position label slightly above the top of the bar
-        ax.text(
-            angle,
-            bar.get_height() + 5,
-            f"{labels[i]}: {values[i]:.1f}",
-            ha=alignment,
-            va="center",
-            fontsize=9,
-            color="black"
-        )
+    # Rotate labels for readability
+    for label, angle in zip(ax.get_xticklabels(), angles[:-1]):
+        angle_deg = np.degrees(angle)
+        if angle_deg >= 90 and angle_deg <= 270:
+            label.set_rotation(angle_deg + 180)
+            label.set_horizontalalignment('right')
+        else:
+            label.set_rotation(angle_deg)
+            label.set_horizontalalignment('left')
 
-    # Set the radial limit, hiding the radial ticks for a cleaner look
-    ax.set_ylim(0, max(values)*1.2 if max(values) > 0 else 100)
-    ax.set_yticks([])
-    ax.set_xticks([])
+    # Plot the data
+    ax.plot(angles, values, color="orangered", linewidth=2)
+    ax.fill(angles, values, color="orangered", alpha=0.25)
 
-    plt.title(title, fontsize=14, color="darkorange", y=1.05)
-    plt.tight_layout()
+    # Title
+    plt.title(title, size=14, y=1.08, color="orangered")
+
     st.pyplot(fig)
     
 # --- AI Scouting Report ---
