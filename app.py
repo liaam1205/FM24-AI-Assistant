@@ -225,6 +225,10 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
+import numpy as np
+import matplotlib.pyplot as plt
+import streamlit as st
+
 def plot_compare_players_pizza(player1_data, player2_data, metrics, 
                                player1_name="Player 1", player2_name="Player 2",
                                player1_color='orangered', player2_color='dodgerblue',
@@ -233,8 +237,9 @@ def plot_compare_players_pizza(player1_data, player2_data, metrics,
     values1 = []
     values2 = []
 
+    # Clean and convert metric values for both players
     for m in metrics:
-        # Clean & convert player 1 value
+        # Player 1
         val1 = player1_data.get(m, 0)
         if isinstance(val1, str):
             val1 = val1.replace(",", "").replace("%", "")
@@ -244,7 +249,7 @@ def plot_compare_players_pizza(player1_data, player2_data, metrics,
             val1_float = 0.0
         values1.append(val1_float)
 
-        # Clean & convert player 2 value
+        # Player 2
         val2 = player2_data.get(m, 0)
         if isinstance(val2, str):
             val2 = val2.replace(",", "").replace("%", "")
@@ -256,74 +261,78 @@ def plot_compare_players_pizza(player1_data, player2_data, metrics,
 
     N = len(labels)
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
-    width = (2 * np.pi / N) * 0.4  # width of each bar, smaller to fit side by side
+    width = (2 * np.pi / N) * 0.4  # bar width to fit side-by-side
 
     fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
 
     max_val = max(max(values1), max(values2), 1)  # avoid zero division
 
+    # Normalize values to 100 scale
     radii1 = [v / max_val * 100 for v in values1]
     radii2 = [v / max_val * 100 for v in values2]
 
+    # Plot bars for both players, shifted slightly to avoid overlap
     bars1 = ax.bar(angles - width/2, radii1, width=width, bottom=0.0, 
                    color=player1_color, alpha=0.7, edgecolor='black', label=player1_name)
-
     bars2 = ax.bar(angles + width/2, radii2, width=width, bottom=0.0, 
                    color=player2_color, alpha=0.7, edgecolor='black', label=player2_name)
 
-    # Add labels & values for player 1 (outside bars)
-    for bar, angle, label, val in zip(bars1, angles, labels, values1):
+    # Add value labels on top of bars for Player 1
+    for bar, angle, val in zip(bars1, angles, values1):
         rotation = np.rad2deg(angle)
         ax.text(
             angle - width/2,
-            bar.get_height() + 5,
+            bar.get_height() + 4,
             f"{val:.1f}",
             ha='center',
             va='center',
-            fontsize=8,
+            fontsize=9,
             rotation=rotation,
             rotation_mode='anchor',
             color=player1_color,
             fontweight='bold'
         )
 
-    # Add labels & values for player 2
-    for bar, angle, label, val in zip(bars2, angles, labels, values2):
+    # Add value labels on top of bars for Player 2
+    for bar, angle, val in zip(bars2, angles, values2):
         rotation = np.rad2deg(angle)
         ax.text(
             angle + width/2,
-            bar.get_height() + 5,
+            bar.get_height() + 4,
             f"{val:.1f}",
             ha='center',
             va='center',
-            fontsize=8,
+            fontsize=9,
             rotation=rotation,
             rotation_mode='anchor',
             color=player2_color,
             fontweight='bold'
         )
 
-    # Add stat labels in the center
+    # Add stat labels outside the bars
+    label_radius = 110  # slightly beyond 100 max scale
     for angle, label in zip(angles, labels):
         rotation = np.rad2deg(angle)
         ax.text(
             angle,
-            105,
+            label_radius,
             label,
             ha='center',
             va='center',
-            fontsize=9,
+            fontsize=10,
             rotation=rotation,
             rotation_mode='anchor',
             fontweight='bold',
             color='black'
         )
 
+    # Clean up the plot appearance
     ax.set_xticks([])
     ax.set_yticks([])
     ax.spines['polar'].set_visible(False)
+    ax.grid(False)
 
-    plt.title(title, y=1.1, fontsize=14, fontweight='bold')
+    plt.title(title, y=1.1, fontsize=16, fontweight='bold')
     plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
     st.pyplot(fig)
