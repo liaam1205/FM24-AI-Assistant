@@ -346,8 +346,4 @@ if df_transfer is not None and not df_transfer.empty:
 if (df_squad is None or df_squad.empty) and (df_transfer is None or df_transfer.empty):
     st.info("Please upload Squad and/or Transfer Market HTML files using the sidebar to begin analysis.")
 
-# --- Footer ---
-st.markdown("---")
-st.markdown(
-    """
-    Developed with ❤️ for Football Manager 2024 enthusiasts
+st.markdown("Developed with ❤️ for Football Manager 2024 enthusiasts.\nPowered by OpenAI GPT and Streamlit.")
