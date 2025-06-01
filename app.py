@@ -272,16 +272,16 @@ def plot_player_pizza(player_data, metrics,
     ax.set_yticklabels([str(g) for g in grid_vals])
     ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.7, alpha=0.6)
 
-    # Add value labels at the end of each bar
+    # Add value labels inside each bar, centered vertically about half the bar height
     for bar, angle, val in zip(bars, angles, values):
         rotation = np.rad2deg(angle)
         # Adjust rotation so text is readable
         if 90 < rotation < 270:
             rotation += 180
-        # Position the value label slightly beyond bar top
+        # Position the value label inside bar at about half bar height
         ax.text(
             angle + width / 2,
-            bar.get_height() + 5,
+            bar.get_height() / 2,
             f"{val:.1f}",
             ha='center',
             va='center',
@@ -289,21 +289,20 @@ def plot_player_pizza(player_data, metrics,
             rotation_mode='anchor',
             fontsize=10,
             fontweight='bold',
-            color='black'
+            color='white'  # White text for contrast inside colored bar
         )
 
     # Add labels outside the outer circle
     label_radius = 110
     for angle, label in zip(angles, labels):
         rotation = np.rad2deg(angle)
-        ha = 'center'
         if 90 < rotation < 270:
             rotation += 180
         ax.text(
             angle + width / 2,
             label_radius,
             label,
-            ha=ha,
+            ha='center',
             va='center',
             rotation=rotation,
             rotation_mode='anchor',
