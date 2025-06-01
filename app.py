@@ -382,11 +382,11 @@ if transfer_df is not None:
             st.write(f"**Current Ability:** {player_row['Current Ability']}")
             st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
 
-            # Radar Chart for Transfer Market Player
-            pos = player_row["Normalized Position"]
-            metrics = position_metrics.get(pos, position_metrics["Unknown"])
-            st.markdown("#### Performance Overview (Radar Chart)")
-            plot_player_radar(player_row, metrics, title=f"{selected_player} - {pos} Radar")
+            # Pizza Chart for Transfer Market Player
+pos = player_row["Normalized Position"]
+metrics = position_metrics.get(pos, position_metrics["Unknown"])
+st.markdown("#### Performance Overview (Pizza Chart)")
+plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
 
             # AI Scout Report for Transfer Market Player
             if st.button("Generate AI Scout Report for Transfer Player"):
