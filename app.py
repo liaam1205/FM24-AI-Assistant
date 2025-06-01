@@ -368,27 +368,27 @@ if transfer_df is not None:
 
     st.dataframe(filtered)
 
-    if not filtered.empty:
-        player_names = filtered["Name"].unique().tolist()
-        selected_player = st.selectbox("Select a player to view details", player_names)
+if not filtered.empty:
+    player_names = filtered["Name"].unique().tolist()
+    selected_player = st.selectbox("Select a player to view details", player_names)
 
-        if selected_player:
-            player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
+    if selected_player:
+        player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
 
-            st.markdown(f"### Player Details: {player_row['Name']}")
-            st.write(f"**Club:** {player_row['Club']}")
-            st.write(f"**Position:** {player_row['Position']}")
-            st.write(f"**Age:** {player_row['Age']}")
-            st.write(f"**Current Ability:** {player_row['Current Ability']}")
-            st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+        st.markdown(f"### Player Details: {player_row['Name']}")
+        st.write(f"**Club:** {player_row['Club']}")
+        st.write(f"**Position:** {player_row['Position']}")
+        st.write(f"**Age:** {player_row['Age']}")
+        st.write(f"**Current Ability:** {player_row['Current Ability']}")
+        st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
 
-            # Pizza Chart for Transfer Market Player
-pos = player_row["Normalized Position"]
-metrics = position_metrics.get(pos, position_metrics["Unknown"])
-st.markdown("#### Performance Overview (Pizza Chart)")
-plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
+        # Pizza Chart for Transfer Market Player
+        pos = player_row["Normalized Position"]
+        metrics = position_metrics.get(pos, position_metrics["Unknown"])
+        st.markdown("#### Performance Overview (Pizza Chart)")
+        plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
 
-            # AI Scout Report for Transfer Market Player
+        # AI Scout Report for Transfer Market Player
         if st.button("Generate AI Scout Report for Transfer Player"):
             with st.spinner("Generating report..."):
                 report = get_ai_scouting_report(selected_player, player_row)
