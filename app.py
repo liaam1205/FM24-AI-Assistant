@@ -411,31 +411,50 @@ if transfer_df is not None and not transfer_df.empty:
 else:
     st.error("Transfer DataFrame is empty or not loaded.")
 
-# Only show chart if there's data
-if all_metrics:
-    st.markdown("### 📈 Full Performance Metrics")
-    
-    # Sort by value descending
-    sorted_metrics = dict(sorted(all_metrics.items(), key=lambda item: item[1], reverse=True))
-    labels = list(sorted_metrics.keys())
-    values = list(sorted_metrics.values())
-    
-    fig, ax = plt.subplots(figsize=(6, 4))
-    bars = ax.barh(labels, values, color="#1f77b4")
-    ax.invert_yaxis()
-    ax.set_xlabel("Value")
-    ax.set_title(f"{selected_player} – Full Metrics", fontsize=10)
-    ax.grid(True, axis='x', linestyle='--', alpha=0.5)
-    
-    # Add value labels to the right of bars
-    for i, bar in enumerate(bars):
-        width = bar.get_width()
-        ax.text(width + 0.5, bar.get_y() + bar.get_height() / 2, f"{width:.2f}", 
-                va='center', fontsize=7)
+if selected_player:
+    player_row = filtered[filtered["Name"] == selected_player].iloc[0]
 
-    st.pyplot(fig)
-else:
-    st.info("No numeric metric data available for this player.")
+    # Display Transfer Value and Wage
+    transfer_value = player_row.get("Transfer Value", "N/A")
+    wage = player_row.get("Wage", "N/A")
+
+    st.markdown(f"### Player Details: {player_row['Name']}")
+    st.write(f"**Club:** {player_row['Club']}")
+    st.write(f"**Position:** {player_row['Position']}")
+    st.write(f"**Age:** {player_row['Age']}")
+    st.write(f"**Current Ability:** {player_row['Current Ability']}")
+    st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+    st.markdown("### 📋 Contract Information")
+    st.markdown(f"**Transfer Value:** {transfer_value}")
+    st.markdown(f"**Wage:** {wage}")
+
+    # Extract performance metrics
+    all_metrics = clean_and_extract_metrics(player_row)
+
+    if all_metrics:
+        st.markdown("### 📈 Full Performance Metrics")
+        
+        # Sort and plot
+        sorted_metrics = dict(sorted(all_metrics.items(), key=lambda item: item[1], reverse=True))
+        labels = list(sorted_metrics.keys())
+        values = list(sorted_metrics.values())
+        
+        fig, ax = plt.subplots(figsize=(6, 4))
+        bars = ax.barh(labels, values, color="#1f77b4")
+        ax.invert_yaxis()
+        ax.set_xlabel("Value")
+        ax.set_title(f"{selected_player} – Full Metrics", fontsize=10)
+        ax.grid(True, axis='x', linestyle='--', alpha=0.5)
+
+        # Add value labels
+        for i, bar in enumerate(bars):
+            width = bar.get_width()
+            ax.text(width + 0.5, bar.get_y() + bar.get_height() / 2, f"{width:.2f}", 
+                    va='center', fontsize=7)
+
+        st.pyplot(fig)
+    else:
+        st.info("No performance metrics available for this player.")
 
             # Bar Chart for Transfer Market Player
     pos = player_row.get("Normalized Position", "Unknown")
