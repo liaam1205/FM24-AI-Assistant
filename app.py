@@ -98,52 +98,33 @@ def deduplicate_column_names(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
-def parse_html(uploaded_file):
-    if not uploaded_file:
-        return None
+def parse_html(file):
     try:
-        soup = BeautifulSoup(uploaded_file.getvalue(), "html.parser")
-        table = soup.find("table")
-        if not table:
-            st.error("No table found.")
-            return None
+        # Read HTML tables from the uploaded file
+        df_list = pd.read_html(file, encoding='utf-8')
+        df = df_list[0]
 
-        # Parse and map headers
-        raw_headers = [th.get_text(strip=True) for th in table.find_all("th")]
-        final_headers = [raw_to_final_header.get(h, h) for h in raw_headers]
-        final_headers = deduplicate_column_names(final_headers)
+        # Remove duplicate columns
+        df = df.loc[:, ~df.columns.duplicated()]
 
-        # Parse rows
-        data = []
-        for row in table.find_all("tr")[1:]:
-            cols = [td.get_text(strip=True).replace("–", "") for td in row.find_all("td")]
-            if len(cols) == len(final_headers):
-                data.append(cols)
+        # Strip whitespace from column headers
+        df.columns = [col.strip() for col in df.columns]
 
-        df = pd.DataFrame(data, columns=final_headers)
+        # Columns to skip when converting to numeric (preserve formatting)
+        skip_numeric = ["Transfer Value", "Wage"]
 
-        # Currency cleanup
-        for col in ["Transfer Value", "Wage"]:
-            if col in df.columns:
-                df[col] = df[col].apply(parse_currency)
-
-        # Numeric conversion
+        # Clean and convert numeric columns
         for col in df.columns:
-            if col not in ["Name", "Club", "Position"] and df[col].dtype == object:
-                df[col] = df[col].apply(lambda x: str(x).replace(",", "").replace("%", "").strip())
+            if col not in skip_numeric:
+                df[col] = df[col].astype(str).apply(
+                    lambda x: x.replace(",", "").replace("%", "").strip()
+                )
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Normalize position
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
-        else:
-            df["Normalized Position"] = "Unknown"
-
         return df
-
     except Exception as e:
-        st.error(f"Failed to parse file: {e}")
-        return None
+        st.error(f"Error parsing file: {e}")
+        return pd.DataFrame()
 
 # --- VISUALIZATION ---
 def plot_player_barchart(player_row, metrics, player_name):
