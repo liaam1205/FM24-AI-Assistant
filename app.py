@@ -246,13 +246,13 @@ def plot_player_barchart(player_row, metrics, player_name):
         st.warning("Not enough data to create bar chart.")
         return
 
-    fig, ax = plt.subplots(figsize=(4, 0.3 * len(labels) + 1))  # Dynamic height based on number of bars
+    fig, ax = plt.subplots(figsize=(4, 0.3 * len(labels) + 1))
     bars = ax.barh(labels, values, color='tab:blue', alpha=0.8)
 
-    # Add value labels next to each bar
     for bar in bars:
+        offset = max(bar.get_width() * 0.02, 0.3)
         ax.text(
-            bar.get_width() + 1,
+            bar.get_width() + offset,
             bar.get_y() + bar.get_height() / 2,
             f"{bar.get_width():.1f}",
             va='center',
@@ -267,7 +267,6 @@ def plot_player_barchart(player_row, metrics, player_name):
     ax.tick_params(axis='y', labelsize=8, colors='white')
     ax.tick_params(axis='x', labelsize=7, colors='white')
 
-    # Remove spines and grid for clean look
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.grid(axis='x', linestyle='--', linewidth=0.5, color='gray')
