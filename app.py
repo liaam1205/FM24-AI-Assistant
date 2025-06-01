@@ -145,23 +145,20 @@ header_mapping = {
 }
 
 # --- Robust HTML parser function ---
-def parse_html(file) -> pd.DataFrame | None:
-    if file is None:
-        return None
-    try:
-        raw = file.read()
-        if isinstance(raw, bytes):
-            html = raw.decode("utf-8", errors="ignore")
-        else:
-            html = raw
 
-        soup = BeautifulSoup(html, 'html.parser')
+def parse_html(file) -> pd.DataFrame | None:
+    try:
+        # Read and decode the uploaded file content
+        html = file.read().decode("utf-8")
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Find the first table
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
-        # Extract headers
+        # Extract headers from thead or first row
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -170,22 +167,25 @@ def parse_html(file) -> pd.DataFrame | None:
             header_cells = first_tr.find_all("th") if first_tr else []
 
         if not header_cells:
-            st.error("No table headers found.")
+            st.error("No table headers found in the HTML file.")
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
+
+        # Map headers using header_mapping dict (you must have this defined globally)
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
-        # Keep only valid columns
+        # Get indices and valid headers where mapping exists
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
+        # Extract data rows from the table
         rows = []
-        trs = table.find_all("tr")
-        for tr in trs:
+        for tr in table.find_all("tr"):
             cells = tr.find_all("td")
-            if not cells:
-                continue
+            if len(cells) == 0:
+                continue  # skip header or empty rows
+
             row = []
             for i in valid_cols_idx:
                 if i < len(cells):
@@ -199,29 +199,28 @@ def parse_html(file) -> pd.DataFrame | None:
             st.warning("No data rows found in the table.")
             return None
 
+        # Create DataFrame
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Drop duplicate columns if any
-        df = df.loc[:, ~df.columns.duplicated()]
+        # Clean numeric columns safely
+        for col in df.columns:
+            # Skip non-numeric or key text columns
+            if col in ["Name", "Club", "Position", "Normalized Position"]:
+                continue
 
-    # Now clean numeric columns (outside of try if you want)
-    for col in df.columns:
-        if col in ["Name", "Club", "Position", "Normalized Position"]:
-            continue
-        df[col] = (
-            df[col]
-            .astype(str)
-            .str.replace(",", "", regex=False)
-            .str.replace("%", "", regex=False)
-            .str.strip()
-        )
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+            # Remove commas and percentage signs, strip whitespace
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+                .str.replace("%", "", regex=False)
+                .str.strip()
+            )
 
-except Exception as e:
-    st.error(f"Error parsing HTML: {e}")
-    return None
+            # Convert to numeric, coerce errors to NaN
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Normalize positions
+        # Normalize positions into a new column
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
