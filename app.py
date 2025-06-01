@@ -339,7 +339,6 @@ if transfer_df is not None:
     st.write(f"Players available: {len(transfer_df)}")
 
     # Show bar chart for transfer player
-    pos_tr = row["Normalized Position"] if "Normalized Position" in row else "Unknown"
     metrics_tr = position_metrics.get(pos_tr, position_metrics["Unknown"])
     plot_player_barchart(row, metrics_tr, row['Name'])
 
