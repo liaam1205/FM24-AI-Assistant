@@ -204,8 +204,6 @@ def parse_html(file) -> pd.DataFrame | None:
         # Drop duplicate columns if any
         df = df.loc[:, ~df.columns.duplicated()]
 
-try:
-
     # Now clean numeric columns (outside of try if you want)
     for col in df.columns:
         if col in ["Name", "Club", "Position", "Normalized Position"]:
