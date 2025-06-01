@@ -161,6 +161,7 @@ def parse_html_with_pandas(file) -> pd.DataFrame | None:
     if file is None:
         return None
     try:
+        file.seek(0)
         html = file.read().decode("utf-8")
         # Read all tables from the HTML
         dfs = pd.read_html(html, encoding='utf-8')
@@ -171,10 +172,14 @@ def parse_html_with_pandas(file) -> pd.DataFrame | None:
         # choose the largest table by number of rows as main data
         df = max(dfs, key=lambda d: d.shape[0])
         
-        # Normalize headers: rename columns if necessary (map headers)
+        # Handle multi-level headers by flattening columns if necessary
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [' '.join(col).strip() for col in df.columns.values]
+        
+        # Rename columns using your header_mapping dictionary
         df.rename(columns=header_mapping, inplace=True)
         
-        # Drop fully empty columns and rows
+        # Drop fully empty rows and columns
         df.dropna(how='all', axis=0, inplace=True)
         df.dropna(how='all', axis=1, inplace=True)
         
