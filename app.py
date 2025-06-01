@@ -273,7 +273,6 @@ def plot_player_barchart(player_row, metrics, player_name):
     plt.tight_layout()
     st.pyplot(fig)
                           
-# --- AI Scouting Report ---
 def get_ai_scouting_report(player_name, player_data):
     prompt = f"""
 You are a football scouting expert. Based on the following player data, write a concise, insightful scouting report for {player_name}:
@@ -284,11 +283,14 @@ Focus on strengths, weaknesses, and potential.
 """
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt 3.5 turbo",
             messages=[
                 {"role": "system", "content": "You are an expert football scout."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=300,
         )
-        report
+        report = response.choices[0].message.content.strip()
+        return report
+    except Exception as e:
+        return f"Error generating AI scouting report: {e}"
