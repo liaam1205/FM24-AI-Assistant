@@ -316,7 +316,16 @@ if squad_df is not None:
     # Filter options
     col1, col2, col3 = st.columns(3)
     with col1:
-        age_filter = st.slider("Filter by Age", min_value=int(squad_df['Age'].min()), max_value=int(squad_df['Age'].max()), value=(int(squad_df['Age'].min()), int(squad_df['Age'].max())))
+       # Drop NaNs before calculating min and max
+valid_ages = transfer_df["Age"].dropna()
+
+if not valid_ages.empty:
+    age_min = int(valid_ages.min())
+    age_max = int(valid_ages.max())
+    age_filter_tr = st.slider("Age Filter", min_value=age_min, max_value=age_max, value=(age_min, age_max))
+else:
+    st.warning("No valid age data available for filtering.")
+    age_filter_tr = (18, 35)  # or whatever sensible default
     with col2:
         ability_filter = st.slider("Filter by Potential Ability", min_value=int(squad_df['Potential'].min()), max_value=int(squad_df['Potential'].max()), value=(int(squad_df['Potential'].min()), int(squad_df['Potential'].max())))
     with col3:
