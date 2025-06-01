@@ -1,365 +1,194 @@
 import streamlit as st
 import pandas as pd
 from bs4 import BeautifulSoup
-import openai
 import matplotlib.pyplot as plt
 import numpy as np
-import time
+import openai
+import os
 
-# --- Check for lxml dependency ---
-try:
-    import lxml  # noqa: F401
-    lxml_installed = True
-except ImportError:
-    lxml_installed = False
-    st.error(
-        """
-        The **`lxml`** library is required to parse HTML files but is not installed.
-
-        Please install it by running this command in your environment:
-
-        ```
-        pip install lxml
-        ```
-
-        Then restart the app.
-        """
-    )
-
-# --- App Config ---
+# --- SETUP ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
 st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
-st.markdown(
-    """
-Upload your FM24 exported **squad** and **transfer market** HTML files to analyze your squad and transfer targets.  
-Ask AI questions, get detailed player stats with radar/bar charts, and search transfer market players easily!
-"""
-)
 
-# --- Sidebar Instructions ---
-with st.sidebar:
-    st.header("Instructions")
-    st.write(
-        """
-1. Upload your **Squad** and/or **Transfer Market** HTML export files.  
-2. Switch between **Squad** and **Transfer Market** tabs below.  
-3. Search/select a player to view detailed stats and AI scouting report.  
-4. Expand the sections for charts and reports.
-"""
-    )
-    st.markdown("---")
+# --- API KEY INPUT ---
+st.sidebar.subheader("🔐 OpenAI API Key")
+api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+if not api_key:
+    st.warning("Please enter your OpenAI API key to generate AI scouting reports.")
+else:
+    openai.api_key = api_key
 
-# --- OpenAI API Key ---
-api_key = st.secrets["API_KEY"]
-openai.api_key = api_key
+# --- FILE UPLOAD ---
+st.sidebar.header("📁 Upload HTML Files")
+squad_file = st.sidebar.file_uploader("Upload Squad HTML", type=["html", "htm"])
+transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML", type=["html", "htm"])
 
-# --- Position Normalization ---
+# --- POSITION MAPPING ---
 position_aliases = {
-    "GK": "Goalkeeper",
-    "D(C)": "Centre Back",
-    "D(L)": "Fullback",
-    "D(R)": "Fullback",
-    "WB(L)": "Wingback",
-    "WB(R)": "Wingback",
-    "DM": "Defensive Midfielder",
-    "M(C)": "Central Midfielder",
-    "MC": "Central Midfielder",
-    "AM": "Attacking Midfielder",
-    "AM(C)": "Attacking Midfielder",
-    "M(L)": "Wide Midfielder",
-    "M(R)": "Wide Midfielder",
-    "AM(L)": "Inside Forward",
-    "AM(R)": "Inside Forward",
-    "IF": "Inside Forward",
-    "ST(C)": "Striker",
-    "FW": "Forward",
-    "CF": "Complete Forward",
-    "WF": "Wide Forward",
+    "GK": "Goalkeeper", "D (C)": "Centre Back", "D (L)": "Fullback", "D (R)": "Fullback",
+    "WB (L)": "Wingback", "WB (R)": "Wingback", "DM": "Defensive Midfielder", "M (C)": "Central Midfielder",
+    "MC": "Central Midfielder", "AM": "Attacking Midfielder", "AM (C)": "Attacking Midfielder",
+    "M (L)": "Wide Midfielder", "M (R)": "Wide Midfielder", "AM (L)": "Inside Forward",
+    "AM (R)": "Inside Forward", "IF": "Inside Forward", "ST (C)": "Striker",
+    "FW": "Forward", "CF": "Complete Forward", "WF": "Wide Forward",
 }
 
-def normalize_position(pos_str: str) -> str:
+def normalize_position(pos_str):
     if not isinstance(pos_str, str):
         return "Unknown"
-    positions = [p.strip().upper().replace(" ", "").replace(")", "").replace("(", "") for p in pos_str.split(",")]
+    positions = [p.strip().upper().replace(" ", "") for p in pos_str.split(",")]
     for pos in positions:
-        if pos in position_aliases:
-            return position_aliases[pos]
+        for alias_key in position_aliases:
+            if alias_key.replace(" ", "").upper() == pos:
+                return position_aliases[alias_key]
     return "Unknown"
 
-# --- Position-based metrics for charts ---
+# --- KEY METRICS BY POSITION ---
 position_metrics = {
-    "Goalkeeper": [
-        "Pass Completion Ratio", "Save Ratio", "Clean Sheets",
-        "Saves Held", "Saves Parried", "Saves Tipped"
-    ],
-    "Centre Back": [
-        "Assists", "Goals", "Headers Won", "Tackle Completion Ratio",
-        "Interceptions", "Pass Completion Ratio"
-    ],
-    "Fullback": [
-        "Assists", "Goals", "Dribbles Made", "Tackle Completion Ratio",
-        "Interceptions", "Pass Completion Ratio"
-    ],
-    "Wingback": [
-        "Assists", "Goals", "Dribbles Made", "Tackle Completion Ratio",
-        "Interceptions", "Pass Completion Ratio"
-    ],
-    "Defensive Midfielder": [
-        "Assists", "Goals", "Tackle Completion Ratio", "Interceptions",
-        "Pass Completion Ratio", "Key Passes"
-    ],
-    "Central Midfielder": [
-        "Assists", "Goals", "Key Passes", "Dribbles Made",
-        "Pass Completion Ratio", "Interceptions"
-    ],
-    "Attacking Midfielder": [
-        "Assists", "Goals", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Expected Assists", "Key Passes"
-    ],
-    "Wide Midfielder": [
-        "Assists", "Goals", "Dribbles Made", "Key Passes",
-        "Pass Completion Ratio", "Expected Goals per 90 Minutes"
-    ],
-    "Inside Forward": [
-        "Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Key Passes"
-    ],
-    "Complete Forward": [
-        "Assists", "Goals", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Key Passes"
-    ],
-    "Striker": [
-        "Assists", "Goals", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Key Passes"
-    ],
-    "Forward": [
-        "Assists", "Goals", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Key Passes"
-    ],
-    "Wide Forward": [
-        "Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Key Passes"
-    ],
-    "Unknown": [
-        "Assists", "Goals", "Expected Goals per 90 Minutes",
-        "Expected Goals Overperformance", "Expected Assists", "Key Passes"
-    ]
+    "Goalkeeper": ["Pass Completion Ratio", "Save Ratio", "Clean Sheets", "Saves Held", "Saves Parried", "Saves Tipped"],
+    "Centre Back": ["Assists", "Goals", "Headers Won", "Tackle Completion Ratio", "Interceptions", "Pass Completion Ratio"],
+    "Fullback": ["Assists", "Goals", "Dribbles Made", "Tackle Completion Ratio", "Interceptions", "Pass Completion Ratio"],
+    "Wingback": ["Assists", "Goals", "Dribbles Made", "Tackle Completion Ratio", "Interceptions", "Pass Completion Ratio"],
+    "Defensive Midfielder": ["Assists", "Goals", "Tackle Completion Ratio", "Interceptions", "Pass Completion Ratio", "Key Passes"],
+    "Central Midfielder": ["Assists", "Goals", "Key Passes", "Dribbles Made", "Pass Completion Ratio", "Interceptions"],
+    "Attacking Midfielder": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Expected Assists", "Key Passes"],
+    "Wide Midfielder": ["Assists", "Goals", "Dribbles Made", "Key Passes", "Pass Completion Ratio", "Expected Goals per 90 Minutes"],
+    "Inside Forward": ["Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
+    "Complete Forward": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
+    "Striker": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
+    "Forward": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
+    "Wide Forward": ["Assists", "Goals", "Dribbles Made", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Key Passes"],
+    "Unknown": ["Assists", "Goals", "Expected Goals per 90 Minutes", "Expected Goals Overperformance", "Expected Assists", "Key Passes"]
 }
 
-# --- Header mapping for unique column names ---
+# --- HEADER TRANSLATION ---
 header_mapping = {
-    "Inf": "Information",
-    "Name": "Name",
-    "Club": "Club",
-    "Position": "Position",
-    "Age": "Age",
-    "Potential": "Potential",
-    "Ability": "Current Ability",
-    "CA": "Current Ability",
-    "PA": "Potential Ability",
-    "Transfer Value": "Transfer Value",
-    "Wage": "Wage",
-    "Ast": "Assists",
-    "Gls": "Goals",
-    "xG/90": "Expected Goals per 90 Minutes",
-    "xG-OP": "Expected Goals Overperformance",
-    "xA": "Expected Assists",
-    "K Pas": "Key Passes",
-    "Drb": "Dribbles Made",
-    "Pas %": "Pass Completion Ratio",
-    "Itc": "Interceptions",
-    "Hdrs": "Headers Won",
-    "Tck R": "Tackle Completion Ratio",
-    "Sv %": "Save Ratio",
-    "Clean Sheets": "Clean Sheets",
-    "Svh": "Saves Held",
-    "Svp": "Saves Parried",
-    "Svt": "Saves Tipped",
+    "Inf": "Information", "Name": "Name", "Club": "Club", "Position": "Position", "Age": "Age",
+    "Potential": "Potential", "Ability": "Current Ability", "CA": "Current Ability", "PA": "Potential Ability",
+    "Transfer Value": "Transfer Value", "Wage": "Wage", "Ast": "Assists", "Gls": "Goals",
+    "xG/90": "Expected Goals per 90 Minutes", "xG-OP": "Expected Goals Overperformance", "xA": "Expected Assists",
+    "K Pas": "Key Passes", "Drb": "Dribbles Made", "Pas %": "Pass Completion Ratio",
+    "Itc": "Interceptions", "Hdrs": "Headers Won", "Tck R": "Tackle Completion Ratio",
+    "Sv %": "Save Ratio", "Clean Sheets": "Clean Sheets", "Svh": "Saves Held",
+    "Svp": "Saves Parried", "Svt": "Saves Tipped", "Rec": "Recommendation"
 }
 
-def parse_html_with_pandas(file) -> pd.DataFrame | None:
-    if file is None or not lxml_installed:
-        return None
-    try:
-        file.seek(0)
-        html = file.read().decode("utf-8")
-        dfs = pd.read_html(html, encoding='utf-8')
-        if not dfs:
-            st.error("No tables found in the HTML file.")
-            return None
-        df = max(dfs, key=lambda d: d.shape[0])
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [' '.join(col).strip() for col in df.columns.values]
-        df.rename(columns={orig: header_mapping[orig] for orig in header_mapping if orig in df.columns}, inplace=True)
-        df.dropna(how='all', axis=0, inplace=True)
-        df.dropna(how='all', axis=1, inplace=True)
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
+def deduplicate_headers(headers):
+    seen = {}
+    deduped = []
+    for h in headers:
+        if h not in seen:
+            seen[h] = 1
+            deduped.append(h)
         else:
-            df["Normalized Position"] = "Unknown"
+            seen[h] += 1
+            deduped.append(f"{h} ({seen[h]})")
+    return deduped
+
+# --- PARSE HTML FUNCTION ---
+def parse_html(file) -> pd.DataFrame | None:
+    try:
+        html = file.read().decode("utf-8")
+        soup = BeautifulSoup(html, "lxml")
+        table = soup.find("table")
+        if not table:
+            st.error("No table found.")
+            return None
+
+        headers = [th.get_text(strip=True) for th in table.find_all("th")]
+        headers = deduplicate_headers([header_mapping.get(h, h) for h in headers])
+        rows = []
+        for tr in table.find_all("tr")[1:]:
+            tds = tr.find_all("td")
+            if len(tds) == len(headers):
+                rows.append([td.get_text(strip=True) for td in tds])
+
+        df = pd.DataFrame(rows, columns=headers)
+        df.columns = df.columns.str.strip()
+        df["Normalized Position"] = df["Position"].apply(normalize_position) if "Position" in df.columns else "Unknown"
+
+        for col in df.columns:
+            if col not in ["Name", "Club", "Position", "Normalized Position"]:
+                df[col] = df[col].str.replace(",", "").str.replace("%", "").str.strip()
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
         return df
     except Exception as e:
-        st.error(f"Error parsing HTML with pandas: {e}")
+        st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_barchart(player_row: pd.Series, metrics: list[str], player_name: str):
-    labels = [m for m in metrics if pd.notnull(player_row.get(m)) and player_row.get(m) not in ["", "N/A"]]
-    def clean_value(val):
-        if isinstance(val, str):
-            val = val.replace("%", "").replace(",", "")
-        try:
-            return float(val)
-        except:
-            return 0.0
-    values = [clean_value(player_row[m]) for m in labels]
+# --- BAR CHART ---
+def plot_player_barchart(player_row, metrics, player_name):
+    labels = [m for m in metrics if player_row.get(m) not in [None, "", "N/A", np.nan]]
+    values = [float(player_row[m]) if pd.notnull(player_row[m]) else 0 for m in labels]
+
     if not labels or not values:
-        st.warning("Not enough data to create bar chart.")
+        st.warning("Not enough data to plot.")
         return
+
     fig, ax = plt.subplots(figsize=(5, 0.4 * len(labels) + 1))
-    bars = ax.barh(labels, values, color='tab:blue', alpha=0.85)
-    xmin, xmax = ax.get_xlim()
+    bars = ax.barh(labels, values, color='steelblue')
     for bar in bars:
-        width = bar.get_width()
-        offset = max(width * 0.02, 0.3)
-        text_color = "white" if width > (xmax * 0.1) else "black"
-        ax.text(
-            width + offset,
-            bar.get_y() + bar.get_height() / 2,
-            f"{width:.1f}",
-            va='center',
-            fontsize=8,
-            color=text_color,
-            fontweight='bold'
-        )
-    ax.set_title(f"Key Stats for {player_name}", fontsize=14, pad=12)
-    ax.set_xlabel("Value", fontsize=10)
+        ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2, f"{bar.get_width():.2f}", va='center', fontsize=8)
+    ax.set_title(player_name)
     ax.set_facecolor("none")
-    fig.patch.set_alpha(0)
-    ax.tick_params(axis='y', labelsize=10, colors='black')
-    ax.tick_params(axis='x', labelsize=9, colors='black')
     for spine in ax.spines.values():
         spine.set_visible(False)
-    ax.grid(axis='x', linestyle='--', linewidth=0.5, color='gray')
-    plt.tight_layout()
+    ax.grid(axis='x', linestyle='--', alpha=0.3)
     st.pyplot(fig)
 
-def get_ai_scouting_report(player_name: str, player_data: pd.Series) -> str:
-    prompt = f"""
-You are a football scouting expert. Based on the following player data, write a concise, insightful scouting report for {player_name}:
+# --- AI REPORT ---
+def get_ai_scouting_report(player_name, player_row):
+    if not api_key:
+        return "API key not provided."
+    prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {player_name} based on the following stats:
 
-{player_data.to_dict()}
+{player_row.to_dict()}
 
-Focus on strengths, weaknesses, and potential.
-"""
+Highlight strengths, weaknesses, and role suitability."""
     try:
-        with st.spinner("Generating AI scouting report..."):
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are an expert football scout."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=300,
-            )
-            report = response.choices[0].message.content.strip()
-            time.sleep(0.5)
-            return report
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert football scout."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=300,
+        )
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"Error generating AI scouting report: {e}"
+        return f"Error from OpenAI: {e}"
 
-# --- Upload Section ---
-with st.sidebar:
-    squad_file = st.file_uploader("Upload Squad HTML file", type=["html", "htm"])
-    transfer_file = st.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
+# --- MAIN TABS ---
+df_squad = parse_html(squad_file) if squad_file else None
+df_transfer = parse_html(transfer_file) if transfer_file else None
 
-df_squad = parse_html_with_pandas(squad_file) if squad_file else None
-df_transfer = parse_html_with_pandas(transfer_file) if transfer_file else None
-
-# --- Tabs for Squad and Transfer Market ---
 tab1, tab2 = st.tabs(["🏟️ Squad", "🌍 Transfer Market"])
 
-def player_selector(df: pd.DataFrame, label: str) -> str | None:
-    player_names = df["Name"].dropna().drop_duplicates().tolist()
-    search = st.text_input(f"Search {label} player by name")
-    if search:
-        filtered = [p for p in player_names if search.lower() in p.lower()]
-    else:
-        filtered = player_names
-    if filtered:
-        return st.selectbox(f"Select {label} player", filtered)
-    else:
-        st.info(f"No {label} players found matching '{search}'.")
-        return None
-
 with tab1:
-    st.header("Squad Players")
-    if df_squad is not None and not df_squad.empty:
-        st.dataframe(df_squad.head(15))
-        selected_player = player_selector(df_squad, "Squad")
-        if selected_player:
-            filtered_squad = df_squad[df_squad["Name"] == selected_player]
-            if not filtered_squad.empty:
-                player_row = filtered_squad.iloc[0]
-                pos = player_row.get("Normalized Position", "Unknown")
-                metrics = position_metrics.get(pos, position_metrics["Unknown"])
-                cols = st.columns(4)
-                stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
-                for i, stat in enumerate(stat_list[:4]):
-                    with cols[i]:
-                        val = player_row.get(stat)
-                        if pd.notna(val):
-                            st.metric(label=stat, value=f"{val}")
-                        else:
-                            st.metric(label=stat, value="N/A")
-                with st.expander(f"Player Stats Chart for {selected_player}"):
-                    plot_player_barchart(player_row, metrics, selected_player)
-                with st.expander(f"AI Scouting Report for {selected_player}"):
-                    report = get_ai_scouting_report(selected_player, player_row)
-                    st.write(report)
-            else:
-                st.warning(f"No data found for squad player: {selected_player}")
+    if df_squad is not None:
+        st.subheader("Squad Players")
+        st.dataframe(df_squad)
+        player = st.selectbox("Select a player", df_squad["Name"].unique())
+        selected = df_squad[df_squad["Name"] == player].iloc[0]
+        pos = selected["Normalized Position"]
+        plot_player_barchart(selected, position_metrics.get(pos, []), player)
+        with st.expander("🧠 AI Scouting Report"):
+            st.markdown(get_ai_scouting_report(player, selected))
     else:
-        st.info("Please upload a Squad HTML file to view squad players.")
+        st.info("Upload a squad HTML file.")
 
 with tab2:
-    st.header("Transfer Market Players")
-    if df_transfer is not None and not df_transfer.empty:
-        st.dataframe(df_transfer.head(15))
-        selected_transfer_player = player_selector(df_transfer, "Transfer Market")
-        if selected_transfer_player:
-            filtered_transfer = df_transfer[df_transfer["Name"] == selected_transfer_player]
-            if not filtered_transfer.empty:
-                player_row = filtered_transfer.iloc[0]
-                pos = player_row.get("Normalized Position", "Unknown")
-                metrics = position_metrics.get(pos, position_metrics["Unknown"])
-                cols = st.columns(4)
-                stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
-                for i, stat in enumerate(stat_list[:4]):
-                    with cols[i]:
-                        val = player_row.get(stat)
-                        if pd.notna(val):
-                            st.metric(label=stat, value=f"{val}")
-                        else:
-                            st.metric(label=stat, value="N/A")
-                with st.expander(f"Player Stats Chart for {selected_transfer_player}"):
-                    plot_player_barchart(player_row, metrics, selected_transfer_player)
-                with st.expander(f"AI Scouting Report for {selected_transfer_player}"):
-                    report = get_ai_scouting_report(selected_transfer_player, player_row)
-                    st.write(report)
-            else:
-                st.warning(f"No data found for transfer player: {selected_transfer_player}")
+    if df_transfer is not None:
+        st.subheader("Transfer Market Players")
+        st.dataframe(df_transfer)
+        player = st.selectbox("Select transfer target", df_transfer["Name"].unique())
+        selected = df_transfer[df_transfer["Name"] == player].iloc[0]
+        pos = selected["Normalized Position"]
+        plot_player_barchart(selected, position_metrics.get(pos, []), player)
+        with st.expander("🧠 AI Scouting Report"):
+            st.markdown(get_ai_scouting_report(player, selected))
     else:
-        st.info("Please upload a Transfer Market HTML file to view players.")
+        st.info("Upload a transfer market HTML file.")
 
-# --- Inform user if no data loaded in either tab ---
-if (df_squad is None or df_squad.empty) and (df_transfer is None or df_transfer.empty):
-    st.info("Upload Squad and/or Transfer Market HTML files using the sidebar to begin.")
-
-# --- Footer ---
-st.markdown("---")
-st.markdown(
-    """
-    Developed with ❤️ for Football Manager 2024 enthusiasts.  
-    Powered by OpenAI GPT and Streamlit.
-    """
-)
+st.markdown("Made for ⚽ FM24 managers — powered by GPT 🧠 + Streamlit 🛠️")
