@@ -12,10 +12,11 @@ st.title("⚽ Football Manager 2024 Squad & Transfer Analyzer")
 # --- API KEY INPUT ---
 st.sidebar.subheader("🔐 OpenAI API Key")
 api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
-if not api_key:
-    st.warning("Please enter your OpenAI API key to generate AI scouting reports.")
-else:
+if api_key:
     openai.api_key = api_key
+else:
+    openai.api_key = None
+    st.warning("Please enter your OpenAI API key to generate AI scouting reports.")
 
 # --- FILE UPLOAD ---
 st.sidebar.header("📁 Upload HTML Files")
@@ -84,6 +85,7 @@ def deduplicate_headers(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
+# --- PARSE CURRENCY FUNCTION ---
 def parse_currency(value):
     if not isinstance(value, str):
         return None
@@ -100,41 +102,57 @@ def parse_currency(value):
     except:
         return None
 
-def parse_html(file):
+# --- PARSE HTML FUNCTION ---
+def parse_html(uploaded_file):
+    if not uploaded_file:
+        return None
+
     try:
-        tables = pd.read_html(file, flavor="lxml")
+        soup = BeautifulSoup(uploaded_file.getvalue(), "html.parser")
+        table = soup.find("table")
+        if not table:
+            st.error("No table found in uploaded HTML.")
+            return None
+
+        # Extract headers
+        headers = [th.get_text(strip=True) for th in table.find_all("th")]
+        headers = deduplicate_headers(headers)
+        headers = [header_mapping.get(h, h) for h in headers]
+
+        # Extract rows
+        data = []
+        for row in table.find_all("tr")[1:]:
+            cols = [td.get_text(strip=True).replace("–", "") for td in row.find_all("td")]
+            if len(cols) == len(headers):
+                data.append(cols)
+
+        df = pd.DataFrame(data, columns=headers)
+
+        # Clean and convert currency columns
+        for col in ["Transfer Value", "Wage"]:
+            if col in df.columns:
+                df[col] = df[col].apply(parse_currency)
+
+        # Convert numeric columns to numeric dtype where possible
+        for col in df.columns:
+            if col not in ["Name", "Club", "Position"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Normalize position column
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        else:
+            df["Normalized Position"] = "Unknown"
+
+        return df
+
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
-        return pd.DataFrame()
-
-    # Select the table with most overlapping columns with header_mapping values
-    df = max(tables, key=lambda t: len(set(t.columns) & set(header_mapping.values())))
-
-    # Remove duplicate columns
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    # Rename columns
-    df = df.rename(columns=header_mapping)
-
-    # Normalize position column if present
-    if "Position" in df.columns:
-        df["Normalized Position"] = df["Position"].apply(normalize_position)
-
-    for col in df.columns:
-        if col in ["Transfer Value", "Wage"]:
-            df[col] = df[col].apply(parse_currency)
-        elif col not in ["Name", "Club", "Position", "Normalized Position"]:
-            # Safely clean strings before converting to numeric
-            df[col] = df[col].apply(
-                lambda x: x.replace(",", "").replace("%", "").strip() if isinstance(x, str) else ""
-            )
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df
+        return None
 
 # --- BAR CHART FUNCTION ---
 def plot_player_barchart(player_row, metrics, player_name):
-    labels = [m for m in metrics if player_row.get(m) not in [None, "", "N/A", np.nan]]
+    labels = [m for m in metrics if pd.notnull(player_row.get(m)) and str(player_row.get(m)).strip() not in ["", "N/A"]]
     values = [float(player_row[m]) if pd.notnull(player_row[m]) else 0 for m in labels]
 
     if not labels or not values:
@@ -156,11 +174,18 @@ def plot_player_barchart(player_row, metrics, player_name):
 def get_ai_scouting_report(player_name, player_row):
     if not api_key:
         return "API key not provided."
+    
+    # Prepare only relevant stats for brevity
+    pos = player_row.get("Normalized Position", "Unknown")
+    relevant_metrics = position_metrics.get(pos, position_metrics["Unknown"])
+    stats_dict = {k: player_row.get(k) for k in relevant_metrics if k in player_row.index}
+    
     prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {player_name} based on the following stats:
 
-{player_row.to_dict()}
+{stats_dict}
 
 Highlight strengths, weaknesses, and role suitability."""
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -185,12 +210,12 @@ with tab1:
     if df_squad is not None:
         st.subheader("Squad Players")
         st.dataframe(df_squad)
-        player = st.selectbox("Select a player", df_squad["Name"].unique())
-        selected = df_squad[df_squad["Name"] == player].iloc[0]
+        player_squad = st.selectbox("Select a player", df_squad["Name"].unique())
+        selected = df_squad[df_squad["Name"] == player_squad].iloc[0]
         pos = selected["Normalized Position"]
-        plot_player_barchart(selected, position_metrics.get(pos, []), player)
+        plot_player_barchart(selected, position_metrics.get(pos, []), player_squad)
         with st.expander("🧠 AI Scouting Report"):
-            st.markdown(get_ai_scouting_report(player, selected))
+            st.markdown(get_ai_scouting_report(player_squad, selected))
     else:
         st.info("Upload a squad HTML file.")
 
@@ -198,12 +223,12 @@ with tab2:
     if df_transfer is not None:
         st.subheader("Transfer Market Players")
         st.dataframe(df_transfer)
-        player = st.selectbox("Select transfer target", df_transfer["Name"].unique())
-        selected = df_transfer[df_transfer["Name"] == player].iloc[0]
+        player_transfer = st.selectbox("Select transfer target", df_transfer["Name"].unique())
+        selected = df_transfer[df_transfer["Name"] == player_transfer].iloc[0]
         pos = selected["Normalized Position"]
-        plot_player_barchart(selected, position_metrics.get(pos, []), player)
+        plot_player_barchart(selected, position_metrics.get(pos, []), player_transfer)
         with st.expander("🧠 AI Scouting Report"):
-            st.markdown(get_ai_scouting_report(player, selected))
+            st.markdown(get_ai_scouting_report(player_transfer, selected))
     else:
         st.info("Upload a transfer market HTML file.")
 
