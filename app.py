@@ -421,7 +421,11 @@ def clean_and_extract_metrics(player_row):
             continue
     return metrics
 
-all_metrics = clean_and_extract_metrics(player_row)
+for idx, row in transfer_df.iterrows():
+    all_metrics = clean_and_extract_metrics(row)
+    
+    if all_metrics:
+        plot_player_barchart(row, all_metrics.keys(), row["Name"])
 
 # Only show chart if there's data
 if all_metrics:
