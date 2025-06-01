@@ -225,48 +225,72 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_radar(player_data, metrics, player_name, player_color='mediumseagreen'):
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import streamlit as st
+def plot_player_radar(player_row, metrics, player_name):
+    labels = [metric for metric in metrics if player_row.get(metric) not in ["N/A", None, ""]]
+    values = [float(player_row[metric]) for metric in labels]
 
-    values = []
-    for m in metrics:
-        val = player_data.get(m, 0)
-        if isinstance(val, str):
-            val = val.replace(",", "").replace("%", "")
-        try:
-            val_float = float(val)
-        except (ValueError, TypeError):
-            val_float = 0.0
-        values.append(val_float)
+    num_vars = len(labels)
 
-    N = len(metrics)
-    values += values[:1]  # repeat first value to close the loop
-    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    if num_vars == 0:
+        st.warning("Not enough data to create radar chart.")
+        return
+
+    # Repeat the first value to close the radar chart
+    values += values[:1]
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
     angles += angles[:1]
 
-    # Plot
     fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+
+    # Draw the outline
+    ax.plot(angles, values, color='dodgerblue', linewidth=2)
+    ax.fill(angles, values, color='dodgerblue', alpha=0.25)
+
+    # Tidy up the axes
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
+    ax.set_rlabel_position(0)
 
-    # Radar line and fill
-    ax.plot(angles, values, color=player_color, linewidth=2)
-    ax.fill(angles, values, color=player_color, alpha=0.25)
+    # Remove radial labels (Y-axis) and set grid
+    ax.set_yticklabels([])
+    ax.grid(True, color="gray", linestyle="dotted", linewidth=0.5)
 
-    # Labels and values
-    for i, (angle, label, val) in enumerate(zip(angles, metrics + [metrics[0]], values)):
-        angle_deg = np.degrees(angle)
-        ha = 'left' if 90 < angle_deg < 270 else 'right'
-        ax.text(angle, max(values) * 1.05, label, size=7, ha='center', va='bottom', weight='bold')
-        ax.text(angle, max(values) * 0.92, f"{val:.1f}", size=7, ha='center', va='top')
+    # Set category labels and values separately
+    for i, label in enumerate(labels):
+        angle_rad = angles[i]
+        ha = "left" if np.pi/2 < angle_rad < 3*np.pi/2 else "right"
+        distance = values[i] + 5  # Adjust position for value text
 
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.spines['polar'].set_visible(False)
+        # Stat name
+        ax.text(
+            angle_rad,
+            distance + 5,
+            label,
+            size=8,
+            horizontalalignment='center',
+            verticalalignment='center',
+            color='white',
+            bbox=dict(facecolor='black', edgecolor='none', alpha=0.6, boxstyle='round,pad=0.2')
+        )
 
-    plt.title(player_name, fontsize=12, weight='bold', pad=20)
+        # Stat value
+        ax.text(
+            angle_rad,
+            distance,
+            f"{values[i]:.1f}",
+            size=7,
+            horizontalalignment='center',
+            verticalalignment='center',
+            color='lightgray'
+        )
+
+    # Title
+    plt.title(player_name, size=12, y=1.1, color='white')
+
+    # Dark background to match app
+    fig.patch.set_facecolor('#0e1117')
+    ax.set_facecolor('#0e1117')
+
     st.pyplot(fig)
                           
 # --- AI Scouting Report ---
