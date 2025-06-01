@@ -247,79 +247,80 @@ def plot_player_pizza(player_data, metrics,
     N = len(labels)
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
 
-    # Smaller figure size: 2x2 inches
-    fig, ax = plt.subplots(figsize=(2, 2), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(3, 3), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
 
     # Normalize values to 0-100 scale
     normalized = [v / max_val * 100 for v in values]
 
-    # Enforce a minimum height so small values show
-    min_bar_height = 7
-    radii = [h if h >= min_bar_height else min_bar_height for h in normalized]
-
-    width = 2 * np.pi / N * 0.8
+    width = 2 * np.pi / N * 0.7  # Narrow bars to avoid overlap
+    bar_bottom = 0
 
     bars = ax.bar(
         angles,
-        radii,
+        normalized,
         width=width,
-        bottom=0,
+        bottom=bar_bottom,
         color=player_color,
         edgecolor='black',
-        linewidth=0.7,
-        alpha=0.85,
-        align='edge'
+        linewidth=0.8,
+        alpha=0.8,
+        align='center'
     )
 
-    # Grid lines and labels smaller font
-    grid_vals = [0, 25, 50, 75, 100]
+    # Setup gridlines & ticks with subtle style
+    grid_vals = [20, 40, 60, 80, 100]
     ax.set_yticks(grid_vals)
-    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=4)
-    ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.3, alpha=0.5)
+    ax.set_yticklabels([str(g) for g in grid_vals], fontsize=7, color='gray')
+    ax.yaxis.grid(True, color='lightgray', linestyle='--', linewidth=0.5)
+    ax.set_ylim(0, 110)
 
-    # Value text inside bars - smaller font
-    for bar, angle, val, height in zip(bars, angles, values, radii):
-        rotation = np.rad2deg(angle)
-        if 90 < rotation < 270:
-            rotation += 180
-        ax.text(
-            angle + width / 2,
-            height / 2,
-            f"{val:.1f}",
-            ha='center',
-            va='center',
-            rotation=rotation,
-            rotation_mode='anchor',
-            fontsize=5,
-            fontweight='bold',
-            color='white'
-        )
+    # Hide angular ticks
+    ax.set_xticks([])
 
-    # Stat labels outside - smaller font, closer radius
-    label_radius = 115
+    # Add stat labels outside bars with rotation to avoid overlap
+    label_radius = 110
     for angle, label in zip(angles, labels):
         rotation = np.rad2deg(angle)
-        if 90 < rotation < 270:
-            rotation += 180
+        align = 'left'
+        rotation_text = rotation
+        if rotation > 90 and rotation < 270:
+            rotation_text += 180
+            align = 'right'
+
         ax.text(
-            angle + width / 2,
+            angle,
             label_radius,
             label,
-            ha='center',
+            ha=align,
             va='center',
-            rotation=rotation,
+            rotation=rotation_text,
             rotation_mode='anchor',
-            fontsize=5,
+            fontsize=7,
             fontweight='bold',
             color='black'
         )
 
-    ax.set_xticks([])
+    # Add value labels inside bars near the base to avoid clutter
+    for bar, val, angle in zip(bars, values, angles):
+        height = bar.get_height()
+        ax.text(
+            angle,
+            height * 0.2,
+            f"{val:.1f}",
+            ha='center',
+            va='center',
+            fontsize=7,
+            color='white',
+            fontweight='bold',
+            rotation=0
+        )
+
+    # Remove polar spine and ticks for cleaner look
     ax.spines['polar'].set_visible(False)
 
-    plt.title(title, y=1.05, fontsize=8, fontweight='bold')
+    plt.title(title, y=1.08, fontsize=10, fontweight='bold')
 
     st.pyplot(fig)
                           
