@@ -322,13 +322,17 @@ if df_squad is not None and not df_squad.empty:
 if df_transfer is not None:
     st.subheader("Transfer Market Players")
     transfer_player_names = df_transfer["Name"].drop_duplicates().tolist()
-    selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
+   selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
 
-    if selected_transfer_player:
-        player_row = df_transfer[df_transfer["Name"] == selected_transfer_player].iloc[0]
+if selected_transfer_player:
+    filtered_rows = df_transfer[df_transfer["Name"] == selected_transfer_player]
+    if not filtered_rows.empty:
+        player_row = filtered_rows.iloc[0]
         pos = player_row.get("Normalized Position", "Unknown")
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
         plot_player_barchart(player_row, metrics, selected_transfer_player)
+    else:
+        st.warning(f"No data found for player: {selected_transfer_player}")
 
         with st.expander("AI Scouting Report"):
             report = get_ai_scouting_report(selected_transfer_player, player_row)
