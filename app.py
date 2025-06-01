@@ -225,9 +225,8 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_pizza(player_data, metrics, 
-                      player_color='mediumseagreen',
-                      title="Player Performance"):
+def plot_player_pizza(player_data, metrics, player_name,
+                      player_color='mediumseagreen'):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -247,14 +246,12 @@ def plot_player_pizza(player_data, metrics,
     N = len(labels)
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
 
-    fig, ax = plt.subplots(figsize=(1.5, 1.5), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(1.5, 1.5), subplot_kw=dict(polar=True), facecolor='none')
 
     max_val = max(values) if max(values) > 0 else 1
-
-    # Normalize values to 0-100 scale
     normalized = [v / max_val * 100 for v in values]
 
-    width = 2 * np.pi / N * 0.7  # Narrow bars to avoid overlap
+    width = 2 * np.pi / N * 0.7
     bar_bottom = 0
 
     bars = ax.bar(
@@ -269,19 +266,16 @@ def plot_player_pizza(player_data, metrics,
         align='center'
     )
 
-    # Setup gridlines & ticks with subtle style
     grid_vals = [20, 40, 60, 80, 100]
     ax.set_yticks(grid_vals)
     ax.set_yticklabels([str(g) for g in grid_vals], fontsize=5, color='gray')
     ax.yaxis.grid(True, color='lightgray', linestyle='--', linewidth=0.5)
     ax.set_ylim(0, 110)
 
-    # Hide angular ticks
     ax.set_xticks([])
 
-    # Add stat labels and numerical values below each label
     label_radius = 110
-    value_radius = 95  # slightly closer to center than labels
+    value_radius = 85  # increased gap from label to value (was 95 before)
 
     for angle, label, val in zip(angles, labels, values):
         rotation = np.rad2deg(angle)
@@ -291,7 +285,6 @@ def plot_player_pizza(player_data, metrics,
             rotation_text += 180
             align = 'right'
 
-        # Stat label
         ax.text(
             angle,
             label_radius,
@@ -304,7 +297,6 @@ def plot_player_pizza(player_data, metrics,
             fontweight='bold',
             color='black'
         )
-        # Numerical value below label
         ax.text(
             angle,
             value_radius,
@@ -317,12 +309,11 @@ def plot_player_pizza(player_data, metrics,
             color='dimgray'
         )
 
-    # Remove polar spine and ticks for cleaner look
     ax.spines['polar'].set_visible(False)
 
-    plt.title(title, y=1.08, fontsize=8, fontweight='bold')
+    plt.title(player_name, y=1.08, fontsize=8, fontweight='bold', color='black')
 
-    st.pyplot(fig)
+    st.pyplot(fig, transparent=True)
                           
 # --- AI Scouting Report ---
 def get_ai_scouting_report(player_name, player_data):
