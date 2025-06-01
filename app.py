@@ -157,76 +157,28 @@ header_mapping = {
     "Svt": "Saves Tipped",
 }
 
-def parse_html(file) -> pd.DataFrame | None:
+def parse_html_with_pandas(file) -> pd.DataFrame | None:
     if file is None:
         return None
     try:
         html = file.read().decode("utf-8")
-        soup = BeautifulSoup(html, "html.parser")
-
-        # Find table
-        table = soup.find("table")
-        if not table:
-            st.error("No table found in the uploaded HTML file.")
+        # Read all tables from the HTML
+        dfs = pd.read_html(html, encoding='utf-8')
+        if not dfs:
+            st.error("No tables found in the HTML file.")
             return None
-
-        # Headers
-        thead = table.find("thead")
-        if thead:
-            header_cells = thead.find_all("th")
-        else:
-            first_tr = table.find("tr")
-            header_cells = first_tr.find_all("th") if first_tr else []
-
-        if not header_cells:
-            st.error("No table headers found in the HTML file.")
-            return None
-
-        headers_raw = [th.get_text(strip=True) for th in header_cells]
-        headers = [header_mapping.get(h, None) for h in headers_raw]
-
-        valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
-        valid_headers = [h for h in headers if h is not None]
-
-        # Rows
-        rows = []
-        for tr in table.find_all("tr"):
-            cells = tr.find_all("td")
-            if not cells:
-                continue
-            row = []
-            for i in valid_cols_idx:
-                if i < len(cells):
-                    row.append(cells[i].get_text(strip=True))
-                else:
-                    row.append("")
-            if len(row) == len(valid_headers):
-                rows.append(row)
-
-        if not rows:
-            st.warning("No data rows found in the table.")
-            return None
-
-        df = pd.DataFrame(rows, columns=valid_headers)
-
-        # Remove duplicate columns
-        df = df.loc[:, ~df.columns.duplicated()]
-
-        # Clean numeric columns
-        for col in df.columns:
-            if col in ["Name", "Club", "Position", "Information", "Normalized Position"]:
-                continue
-            if isinstance(df[col], pd.Series):
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
-                    .str.strip()
-                )
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        # Normalize positions
+        # Usually FM export has only one main table but sometimes multiple,
+        # choose the largest table by number of rows as main data
+        df = max(dfs, key=lambda d: d.shape[0])
+        
+        # Normalize headers: rename columns if necessary (map headers)
+        df.rename(columns=header_mapping, inplace=True)
+        
+        # Drop fully empty columns and rows
+        df.dropna(how='all', axis=0, inplace=True)
+        df.dropna(how='all', axis=1, inplace=True)
+        
+        # Normalize position column
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -235,7 +187,7 @@ def parse_html(file) -> pd.DataFrame | None:
         return df
 
     except Exception as e:
-        st.error(f"Error parsing HTML: {e}")
+        st.error(f"Error parsing HTML with pandas: {e}")
         return None
 
 def plot_player_barchart(player_row: pd.Series, metrics: list[str], player_name: str):
