@@ -225,7 +225,7 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_radar(player_row, metrics, player_name):
+def plot_player_barchart(player_row, metrics, player_name):
     import streamlit as st
     import matplotlib.pyplot as plt
     import numpy as np
@@ -242,33 +242,35 @@ def plot_player_radar(player_row, metrics, player_name):
 
     values = [clean_value(player_row[metric]) for metric in labels]
 
-    num_vars = len(labels)
-
-    if num_vars == 0:
-        st.warning("Not enough data to create radar chart.")
+    if not labels or not values:
+        st.warning("Not enough data to create bar chart.")
         return
 
-    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-    values += values[:1]
-    angles += angles[:1]
+    fig, ax = plt.subplots(figsize=(4, 0.3 * len(labels) + 1))  # Dynamic height based on number of bars
+    bars = ax.barh(labels, values, color='tab:blue', alpha=0.8)
 
-    fig, ax = plt.subplots(figsize=(2.5, 2.5), subplot_kw=dict(polar=True))
-    ax.plot(angles, values, color='tab:blue', linewidth=2)
-    ax.fill(angles, values, color='tab:blue', alpha=0.25)
+    # Add value labels next to each bar
+    for bar in bars:
+        ax.text(
+            bar.get_width() + 1,
+            bar.get_y() + bar.get_height() / 2,
+            f"{bar.get_width():.1f}",
+            va='center',
+            fontsize=8,
+            color='white'
+        )
 
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=7)
-
-    # Hide radial value labels
-    ax.set_yticklabels([])
-
-    # Chart title
-    ax.set_title(player_name, size=10, color='white', pad=10)
-
-    # Match page styling
-    ax.grid(True, linestyle='--', linewidth=0.5, color='gray')
+    ax.set_title(player_name, fontsize=10, color='white', pad=10)
+    ax.set_xlabel("Value", fontsize=8)
     ax.set_facecolor("none")
     fig.patch.set_alpha(0)
+    ax.tick_params(axis='y', labelsize=8, colors='white')
+    ax.tick_params(axis='x', labelsize=7, colors='white')
+
+    # Remove spines and grid for clean look
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.grid(axis='x', linestyle='--', linewidth=0.5, color='gray')
 
     plt.tight_layout()
     st.pyplot(fig)
