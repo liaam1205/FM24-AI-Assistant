@@ -397,33 +397,39 @@ if squad_df is not None:
 
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
-    st.dataframe(transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False))
+
+    # Default full view
+    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
+    st.dataframe(filtered)
 
     transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
+
     if transfer_search:
-        filtered = transfer_df[
-            transfer_df["Name"].str.contains(transfer_search, case=False, na=False) |
-            transfer_df["Club"].str.contains(transfer_search, case=False, na=False)
+        filtered = filtered[
+            filtered["Name"].str.contains(transfer_search, case=False, na=False) |
+            filtered["Club"].str.contains(transfer_search, case=False, na=False)
         ]
 
-        # Make columns unique before showing
-        filtered.columns = make_unique_columns(list(filtered.columns))
+        if not filtered.empty:
+            # Only fix column names if we filtered the table
+            filtered.columns = make_unique_columns(list(filtered.columns))
+            st.dataframe(filtered)
 
-        st.dataframe(filtered)
+    # === Player Detail Section ===
+    if not filtered.empty:
+        player_names = filtered["Name"].unique().tolist()
+        selected_player = st.selectbox("Select a player to view details", player_names)
 
-if not filtered.empty:
-    player_names = filtered["Name"].unique().tolist()
-    selected_player = st.selectbox("Select a player to view details", player_names)
+        if selected_player:
+            player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
 
-    if selected_player:
-        player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
+            st.markdown(f"### Player Details: {player_row['Name']}")
+            st.write(f"**Club:** {player_row['Club']}")
+            st.write(f"**Position:** {player_row['Position']}")
+            st.write(f"**Age:** {player_row['Age']}")
+            st.write(f"**Current Ability:** {player_row['Current Ability']}")
+            st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
 
-        st.markdown(f"### Player Details: {player_row['Name']}")
-        st.write(f"**Club:** {player_row['Club']}")
-        st.write(f"**Position:** {player_row['Position']}")
-        st.write(f"**Age:** {player_row['Age']}")
-        st.write(f"**Current Ability:** {player_row['Current Ability']}")
-        st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
-
-        # Plot pizza chart or other visuals if available
-        # plot_pizza_chart(player_row)
+            # Optional chart
+            # plot_pizza_chart(player_row)
+            
