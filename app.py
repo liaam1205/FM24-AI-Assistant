@@ -199,18 +199,19 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns: strip commas and '%' from object columns, then convert
+    # Clean numeric columns
         for col in df.columns:
-            if df[col].dtype == object:
-                # Remove commas and percent signs
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
-                )
-                # Attempt to convert to numeric; if fails, keep as-is
-                df[col] = pd.to_numeric(df[col], errors="ignore")
+            if col is None or col not in df:
+                continue  # skip unknown or invalid columns
+
+        if df[col].dtype == object:
+            df[col] = (
+                df[col]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+            .str.replace("%", "", regex=False)
+        )
+        df[col] = pd.to_numeric(df[col], errors="ignore")
 
         # Normalize positions
         if "Position" in df.columns:
