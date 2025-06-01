@@ -361,46 +361,49 @@ if squad_df is not None:
             st.markdown("### AI Scouting Report")
             st.write(report)
 
-# --- Main Interface for Transfer Market ---
 if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
 
     # Show full sorted transfer market
-    filtered = transfer_df[
+    filtered_all = transfer_df[
         ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
     ].sort_values(by="Current Ability", ascending=False)
 
-    st.dataframe(filtered)
+    st.dataframe(filtered_all)
 
-# Assuming transfer_df is your main DataFrame of players
+    # Add a filter for Position with a default "All Positions" option
+    positions = ["All Positions"] + transfer_df["Position"].dropna().unique().tolist()
+    position_filter = st.selectbox("Filter players by Position", options=positions)
 
-# Add a filter for Position
-position_filter = st.selectbox("Filter players by Position", options=transfer_df["Position"].unique())
+    # Filter the DataFrame based on the selected position
+    if position_filter == "All Positions":
+        filtered = transfer_df
+    else:
+        filtered = transfer_df[transfer_df["Position"] == position_filter]
 
-# Filter the DataFrame based on the selected position
-filtered = transfer_df[transfer_df["Position"] == position_filter]
+    if not filtered.empty:
+        player_names = filtered["Name"].unique().tolist()
+        selected_player = st.selectbox("Select a player to view details", player_names)
 
-# Now your existing code to select player and show details
-if not filtered.empty:
-    player_names = filtered["Name"].unique().tolist()
-    selected_player = st.selectbox("Select a player to view details", player_names)
+        if selected_player:
+            player_row = filtered[filtered["Name"] == selected_player].iloc[0]
 
-    if selected_player:
-        player_row = filtered[filtered["Name"] == selected_player].iloc[0]
+            # Display Transfer Value and Wage
+            transfer_value = player_row.get("Transfer Value", "N/A")
+            wage = player_row.get("Wage", "N/A")
+            
+            st.markdown(f"### Player Details: {player_row['Name']}")
+            st.write(f"**Club:** {player_row['Club']}")
+            st.write(f"**Position:** {player_row['Position']}")
+            st.write(f"**Age:** {player_row['Age']}")
+            st.write(f"**Current Ability:** {player_row['Current Ability']}")
+            st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+            st.markdown("### 📋 Contract Information")
+            st.markdown(f"**Transfer Value:** {transfer_value}")
+            st.markdown(f"**Wage:** {wage}")
 
-        # Display Transfer Value and Wage
-        transfer_value = player_row.get("Transfer Value", "N/A")
-        wage = player_row.get("Wage", "N/A")
-        
-        st.markdown(f"### Player Details: {player_row['Name']}")
-        st.write(f"**Club:** {player_row['Club']}")
-        st.write(f"**Position:** {player_row['Position']}")
-        st.write(f"**Age:** {player_row['Age']}")
-        st.write(f"**Current Ability:** {player_row['Current Ability']}")
-        st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
-        st.markdown("### 📋 Contract Information")
-        st.markdown(f"**Transfer Value:** {transfer_value}")
-        st.markdown(f"**Wage:** {wage}")
+else:
+    st.warning("Transfer market data is not available.")
 
 # Display all available numeric performance metrics for the player in a chart
 import matplotlib.pyplot as plt
