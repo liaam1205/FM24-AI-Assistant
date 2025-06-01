@@ -366,11 +366,11 @@ if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
 
     # Show full sorted transfer market
-    filtered = transfer_df[
+    full_market = transfer_df[
         ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
     ].sort_values(by="Current Ability", ascending=False)
 
-    st.dataframe(filtered)
+    st.dataframe(full_market)
 
     # Add a filter for Position
     position_filter = st.selectbox("Filter players by Position", options=transfer_df["Position"].dropna().unique())
@@ -399,16 +399,17 @@ if transfer_df is not None and not transfer_df.empty:
             st.markdown(f"**Transfer Value:** {transfer_value}")
             st.markdown(f"**Wage:** {wage}")
 
-            # ✅ Only now use player_row to extract metrics
+            # ✅ Safe to call after player_row is defined
             all_metrics = clean_and_extract_metrics(player_row)
             if all_metrics:
                 st.markdown("### Performance Overview (All Metrics Chart)")
                 plot_player_barchart(player_row, all_metrics, selected_player)
+            else:
+                st.info("No metric data available to display.")
     else:
         st.warning("No players found for this position.")
 else:
     st.error("Transfer DataFrame is empty or not loaded.")
-
 # Display all available numeric performance metrics for the player in a chart
 import matplotlib.pyplot as plt
 
