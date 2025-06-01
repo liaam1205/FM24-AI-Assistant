@@ -252,7 +252,6 @@ def plot_player_radar(player_row, metrics, player_name):
     values += values[:1]
     angles += angles[:1]
 
-    # Smaller figure size
     fig, ax = plt.subplots(figsize=(2.5, 2.5), subplot_kw=dict(polar=True))
     ax.plot(angles, values, color='tab:blue', linewidth=2)
     ax.fill(angles, values, color='tab:blue', alpha=0.25)
@@ -260,12 +259,17 @@ def plot_player_radar(player_row, metrics, player_name):
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontsize=7)
 
+    # Hide radial value labels
+    ax.set_yticklabels([])
+
+    # Chart title
     ax.set_title(player_name, size=10, color='white', pad=10)
+
+    # Match page styling
     ax.grid(True, linestyle='--', linewidth=0.5, color='gray')
     ax.set_facecolor("none")
     fig.patch.set_alpha(0)
 
-    # Tight layout to reduce padding
     plt.tight_layout()
     st.pyplot(fig)
                           
