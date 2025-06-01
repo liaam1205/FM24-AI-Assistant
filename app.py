@@ -163,34 +163,27 @@ def parse_html_with_pandas(file) -> pd.DataFrame | None:
     try:
         file.seek(0)
         html = file.read().decode("utf-8")
-        # Read all tables from the HTML
+        # Let pandas parse all tables
         dfs = pd.read_html(html, encoding='utf-8')
         if not dfs:
             st.error("No tables found in the HTML file.")
             return None
-        # Usually FM export has only one main table but sometimes multiple,
-        # choose the largest table by number of rows as main data
+        # Choose the largest table by row count
         df = max(dfs, key=lambda d: d.shape[0])
-        
-        # Handle multi-level headers by flattening columns if necessary
+        # Handle multi-level columns
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = [' '.join(col).strip() for col in df.columns.values]
-        
-        # Rename columns using your header_mapping dictionary
-        df.rename(columns=header_mapping, inplace=True)
-        
-        # Drop fully empty rows and columns
+        # Rename columns using header_mapping (case-insensitive)
+        df.rename(columns={orig: header_mapping[orig] for orig in header_mapping if orig in df.columns}, inplace=True)
+        # Drop blank rows/columns
         df.dropna(how='all', axis=0, inplace=True)
         df.dropna(how='all', axis=1, inplace=True)
-        
-        # Normalize position column
+        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
             df["Normalized Position"] = "Unknown"
-
         return df
-
     except Exception as e:
         st.error(f"Error parsing HTML with pandas: {e}")
         return None
@@ -199,25 +192,22 @@ def plot_player_barchart(player_row: pd.Series, metrics: list[str], player_name:
     labels = [m for m in metrics if pd.notnull(player_row.get(m)) and player_row.get(m) not in ["", "N/A"]]
     def clean_value(val):
         if isinstance(val, str):
-            val = val.replace("%", "")
+            val = val.replace("%", "").replace(",", "")
         try:
             return float(val)
         except:
             return 0.0
-
     values = [clean_value(player_row[m]) for m in labels]
-
     if not labels or not values:
         st.warning("Not enough data to create bar chart.")
         return
-
     fig, ax = plt.subplots(figsize=(5, 0.4 * len(labels) + 1))
     bars = ax.barh(labels, values, color='tab:blue', alpha=0.85)
-
+    xmin, xmax = ax.get_xlim()
     for bar in bars:
         width = bar.get_width()
         offset = max(width * 0.02, 0.3)
-        text_color = "white" if width > plt.xlim()[1] * 0.1 else "black"
+        text_color = "white" if width > (xmax * 0.1) else "black"
         ax.text(
             width + offset,
             bar.get_y() + bar.get_height() / 2,
@@ -227,18 +217,15 @@ def plot_player_barchart(player_row: pd.Series, metrics: list[str], player_name:
             color=text_color,
             fontweight='bold'
         )
-
     ax.set_title(f"Key Stats for {player_name}", fontsize=14, pad=12)
     ax.set_xlabel("Value", fontsize=10)
     ax.set_facecolor("none")
     fig.patch.set_alpha(0)
     ax.tick_params(axis='y', labelsize=10, colors='black')
     ax.tick_params(axis='x', labelsize=9, colors='black')
-
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.grid(axis='x', linestyle='--', linewidth=0.5, color='gray')
-
     plt.tight_layout()
     st.pyplot(fig)
 
@@ -271,8 +258,8 @@ with st.sidebar:
     squad_file = st.file_uploader("Upload Squad HTML file", type=["html", "htm"])
     transfer_file = st.file_uploader("Upload Transfer Market HTML file", type=["html", "htm"])
 
-df_squad = parse_html(squad_file) if squad_file else None
-df_transfer = parse_html(transfer_file) if transfer_file else None
+df_squad = parse_html_with_pandas(squad_file) if squad_file else None
+df_transfer = parse_html_with_pandas(transfer_file) if transfer_file else None
 
 # --- Tabs for Squad and Transfer Market ---
 tab1, tab2 = st.tabs(["🏟️ Squad", "🌍 Transfer Market"])
@@ -301,8 +288,6 @@ with tab1:
                 player_row = filtered_squad.iloc[0]
                 pos = player_row.get("Normalized Position", "Unknown")
                 metrics = position_metrics.get(pos, position_metrics["Unknown"])
-
-                # Display top metrics
                 cols = st.columns(4)
                 stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
                 for i, stat in enumerate(stat_list[:4]):
@@ -312,12 +297,8 @@ with tab1:
                             st.metric(label=stat, value=f"{val}")
                         else:
                             st.metric(label=stat, value="N/A")
-
-                # Player stats chart
                 with st.expander(f"Player Stats Chart for {selected_player}"):
                     plot_player_barchart(player_row, metrics, selected_player)
-
-                # AI scouting report
                 with st.expander(f"AI Scouting Report for {selected_player}"):
                     report = get_ai_scouting_report(selected_player, player_row)
                     st.write(report)
@@ -337,7 +318,6 @@ with tab2:
                 player_row = filtered_transfer.iloc[0]
                 pos = player_row.get("Normalized Position", "Unknown")
                 metrics = position_metrics.get(pos, position_metrics["Unknown"])
-
                 cols = st.columns(4)
                 stat_list = ["Age", "Current Ability", "Potential Ability", "Goals", "Assists", "Pass Completion Ratio"]
                 for i, stat in enumerate(stat_list[:4]):
@@ -347,10 +327,8 @@ with tab2:
                             st.metric(label=stat, value=f"{val}")
                         else:
                             st.metric(label=stat, value="N/A")
-
                 with st.expander(f"Player Stats Chart for {selected_transfer_player}"):
                     plot_player_barchart(player_row, metrics, selected_transfer_player)
-
                 with st.expander(f"AI Scouting Report for {selected_transfer_player}"):
                     report = get_ai_scouting_report(selected_transfer_player, player_row)
                     st.write(report)
