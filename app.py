@@ -145,19 +145,20 @@ header_mapping = {
 }
 
 # --- Robust HTML parser function ---
+
 def parse_html(file) -> pd.DataFrame | None:
     try:
-        if file is None:
-            return None
-
+        # Read and decode the uploaded file content
         html = file.read().decode("utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
+        # Find the first table
         table = soup.find("table")
         if not table:
             st.error("No table found in the uploaded HTML file.")
             return None
 
+        # Extract headers from thead or first row
         thead = table.find("thead")
         if thead:
             header_cells = thead.find_all("th")
@@ -170,11 +171,15 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
+
+        # Map headers using header_mapping dict (you must have this defined globally)
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
+        # Get indices and valid headers where mapping exists
         valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
         valid_headers = [h for h in headers if h is not None]
 
+        # Extract data rows from the table
         rows = []
         for tr in table.find_all("tr"):
             cells = tr.find_all("td")
@@ -194,20 +199,27 @@ def parse_html(file) -> pd.DataFrame | None:
             st.warning("No data rows found in the table.")
             return None
 
+        # Create DataFrame
         df = pd.DataFrame(rows, columns=valid_headers)
 
+        # Clean numeric columns safely
         for col in df.columns:
             if col in ["Name", "Club", "Position", "Normalized Position"]:
                 continue
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace(",", "", regex=False)
-                .str.replace("%", "", regex=False)
-                .str.strip()
-            )
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            # Only proceed if df[col] is a Series (single column)
+            if isinstance(df[col], pd.Series):
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace(",", "", regex=False)
+                    .str.replace("%", "", regex=False)
+                    .str.strip()
+                )
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            else:
+                st.warning(f"Skipping cleaning column '{col}' as it is not a Series.")
 
+        # Normalize positions into a new column
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
