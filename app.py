@@ -372,26 +372,27 @@ if transfer_df is not None and not transfer_df.empty:
 
     st.dataframe(filtered)
 
-    if not filtered.empty:
-        player_names = filtered["Name"].unique().tolist()
-        selected_player = st.selectbox("Select a player to view details", player_names)
+   if not filtered.empty:
+    player_names = filtered["Name"].unique().tolist()
+    selected_player = st.selectbox("Select a player to view details", player_names)
 
-        if selected_player:
-            player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
+    if selected_player:
+        player_row = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
 
-    # Display Transfer Value and Wage
-            transfer_value = player_row.get("Transfer Value", "N/A")
-            wage = player_row.get("Wage", "N/A")
-            
-            st.markdown(f"### Player Details: {player_row['Name']}")
-            st.write(f"**Club:** {player_row['Club']}")
-            st.write(f"**Position:** {player_row['Position']}")
-            st.write(f"**Age:** {player_row['Age']}")
-            st.write(f"**Current Ability:** {player_row['Current Ability']}")
-            st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
-            st.markdown("### 📋 Contract Information")
-            st.markdown(f"**Transfer Value:** {transfer_value}")
-            st.markdown(f"**Wage:** {wage}")
+        # Display Transfer Value and Wage
+        transfer_value = player_row.get("Transfer Value", "N/A")
+        wage = player_row.get("Wage", "N/A")
+        
+        st.markdown(f"### Player Details: {player_row['Name']}")
+        st.write(f"**Club:** {player_row['Club']}")
+        st.write(f"**Position:** {player_row['Position']}")
+        st.write(f"**Age:** {player_row['Age']}")
+        st.write(f"**Current Ability:** {player_row['Current Ability']}")
+        st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
+        
+        st.markdown("### 📋 Contract Information")
+        st.markdown(f"**Transfer Value:** {transfer_value}")
+        st.markdown(f"**Wage:** {wage}")
 
 # Display all available numeric performance metrics for the player in a chart
 import matplotlib.pyplot as plt
