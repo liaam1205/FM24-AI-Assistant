@@ -361,9 +361,27 @@ if squad_df is not None:
             st.markdown("### AI Scouting Report")
             st.write(report)
 
-selected_player = None
-player_row = None
+import streamlit as st
+import matplotlib.pyplot as plt
+import pandas as pd
 
+# --- Function to clean and extract numeric performance metrics from player row ---
+def clean_and_extract_metrics(player_row):
+    """
+    Extracts numeric metrics from a player's data row (pandas Series).
+    Filters out non-numeric columns and returns a dict of metric_name: value.
+    """
+    metrics = {}
+    for col, val in player_row.items():
+        if isinstance(val, (int, float)) and not pd.isna(val):
+            # You can add more logic here to exclude irrelevant numeric columns if needed
+            metrics[col] = val
+    # Optionally remove some columns that are not performance metrics (like Age)
+    for exclude_col in ["Age", "Current Ability", "Potential Ability"]:
+        metrics.pop(exclude_col, None)
+    return metrics
+
+# --- Main Interface for Transfer Market ---
 if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
 
