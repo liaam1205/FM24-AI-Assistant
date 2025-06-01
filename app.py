@@ -225,7 +225,7 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_barchart(player_row, metrics, selected_player):
+def plot_player_barchart(player_row, metrics, player_name):
     import streamlit as st
     import matplotlib.pyplot as plt
     import numpy as np
