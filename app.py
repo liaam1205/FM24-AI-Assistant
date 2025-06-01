@@ -250,9 +250,15 @@ def plot_player_pizza(player_data, metrics,
     fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
 
     max_val = max(values) if max(values) > 0 else 1
-    radii = [v / max_val * 100 for v in values]
 
-    width = 2 * np.pi / N * 0.8  # Wider bars, less gap
+    # Normalize values to 0-100 scale
+    normalized = [v / max_val * 100 for v in values]
+
+    # Enforce a minimum height to ensure small bars are visible
+    min_bar_height = 7  # tweak this value for visibility
+    radii = [h if h >= min_bar_height else min_bar_height for h in normalized]
+
+    width = 2 * np.pi / N * 0.8  # width of each bar
 
     bars = ax.bar(
         angles,
@@ -261,27 +267,25 @@ def plot_player_pizza(player_data, metrics,
         bottom=0,
         color=player_color,
         edgecolor='black',
-        linewidth=1.5,
+        linewidth=1.2,
         alpha=0.85,
-        align='edge'  # bars start exactly at angle position
+        align='edge'
     )
 
-    # Draw concentric grid lines and labels at 0, 25, 50, 75, 100
+    # Grid lines at 0, 25, 50, 75, 100
     grid_vals = [0, 25, 50, 75, 100]
     ax.set_yticks(grid_vals)
     ax.set_yticklabels([str(g) for g in grid_vals])
     ax.yaxis.grid(True, color='gray', linestyle='--', linewidth=0.7, alpha=0.6)
 
-    # Add value labels inside each bar, centered vertically about half the bar height
-    for bar, angle, val in zip(bars, angles, values):
+    # Place value text inside bars at half height, with rotation fix
+    for bar, angle, val, height in zip(bars, angles, values, radii):
         rotation = np.rad2deg(angle)
-        # Adjust rotation so text is readable
         if 90 < rotation < 270:
             rotation += 180
-        # Position the value label inside bar at about half bar height
         ax.text(
             angle + width / 2,
-            bar.get_height() / 2,
+            height / 2,
             f"{val:.1f}",
             ha='center',
             va='center',
@@ -289,11 +293,11 @@ def plot_player_pizza(player_data, metrics,
             rotation_mode='anchor',
             fontsize=10,
             fontweight='bold',
-            color='white'  # White text for contrast inside colored bar
+            color='white'
         )
 
-    # Add labels outside the outer circle
-    label_radius = 110
+    # Label stats outside chart at radius 115
+    label_radius = 115
     for angle, label in zip(angles, labels):
         rotation = np.rad2deg(angle)
         if 90 < rotation < 270:
@@ -311,7 +315,6 @@ def plot_player_pizza(player_data, metrics,
             color='black'
         )
 
-    # Remove default ticks
     ax.set_xticks([])
     ax.spines['polar'].set_visible(False)
 
