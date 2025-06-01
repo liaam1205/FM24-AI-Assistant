@@ -12,10 +12,7 @@ st.title("⚽ FM24 Squad & Transfer Analyzer")
 # --- SIDEBAR INPUT ---
 st.sidebar.subheader("🔐 OpenAI API Key")
 api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
-if api_key:
-    openai.api_key = api_key
-else:
-    openai.api_key = None
+if not api_key:
     st.warning("Please enter your OpenAI API key to generate AI scouting reports.")
 
 # --- FILE UPLOADS ---
