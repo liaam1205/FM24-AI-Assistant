@@ -114,7 +114,7 @@ position_metrics = {
     ]
 }
 
-# --- Header mapping based on your mapping for consistent column names ---
+# --- Header mapping for consistent column names ---
 header_mapping = {
     "Inf": "Information",
     "Name": "Name",
@@ -170,70 +170,6 @@ def parse_html(file) -> pd.DataFrame | None:
             return None
 
         headers_raw = [th.get_text(strip=True) for th in header_cells]
-        headers = [header_mapping.get(h, None) for h in headers_raw]
-
-        valid_cols_idx = [i for i, h in enumerate(headers) if h is not None]
-        valid_headers = [h for h in headers if h is not None]
-
-        rows = []
-        trs = table.find_all("tr")
-        for tr in trs:
-            cells = tr.find_all("td")
-            if len(cells) == 0:
-                continue
-
-            row = []
-            for i in valid_cols_idx:
-                if i < len(cells):
-                    row.append(cells[i].get_text(strip=True))
-                else:
-                    row.append("")
-            if len(row) == len(valid_headers):
-                rows.append(row)
-
-        if not rows:
-            st.warning("No data rows found in the table.")
-            return None
-
-        df = pd.DataFrame(rows, columns=valid_headers)
-
-        # Clean numeric columns
-        # Clean numeric columns
-        for col in df.columns:
-            if col is None or col not in df:
-                continue  # Skip unknown or invalid columns
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = ['_'.join(map(str, col)).strip() for col in df.columns.values]
-            
-            if df[col].dtype == object:
-                df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
-                df[col] = pd.to_numeric(df[col], errors="ignore")
-
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
-        else:
-            df["Normalized Position"] = "Unknown"
-
-        return df
-
-    except Exception as e:
-        st.error(f"Error parsing HTML: {e}")
-        return None
-
-        # Headers extraction from thead or first row
-        thead = table.find("thead")
-        if thead:
-            header_cells = thead.find_all("th")
-        else:
-            first_tr = table.find("tr")
-            header_cells = first_tr.find_all("th") if first_tr else []
-
-        if not header_cells:
-            st.error("No table headers found.")
-            return None
-
-        headers_raw = [th.get_text(strip=True) for th in header_cells]
         # Map headers using mapping; None for unknown headers
         headers = [header_mapping.get(h, None) for h in headers_raw]
 
@@ -263,12 +199,20 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns
+        # Clean numeric columns: strip commas and '%' from object columns, then convert
         for col in df.columns:
             if df[col].dtype == object:
-                df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False)
+                # Remove commas and percent signs
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace(",", "", regex=False)
+                    .str.replace("%", "", regex=False)
+                )
+                # Attempt to convert to numeric; if fails, keep as-is
                 df[col] = pd.to_numeric(df[col], errors="ignore")
 
+        # Normalize positions
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -279,7 +223,7 @@ def parse_html(file) -> pd.DataFrame | None:
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
         return None
-        
+
 # --- Plot radar (pizza) chart ---
 def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
     labels = metrics
@@ -290,22 +234,21 @@ def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
             val = 0
         values.append(float(val))
 
+    # close the loop
     values += values[:1]
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
 
     plt.xticks(angles[:-1], labels, color='grey', size=10)
-
     ax.plot(angles, values, color='orange', linewidth=2, linestyle='solid')
     ax.fill(angles, values, color='orange', alpha=0.25)
 
     ax.set_rlabel_position(0)
-    plt.yticks([20,40,60,80,100], ["20","40","60","80","100"], color="grey", size=8)
+    plt.yticks([20, 40, 60, 80, 100], ["20", "40", "60", "80", "100"], color="grey", size=8)
     plt.ylim(0, 100)
 
     plt.title(title, size=15, color='darkorange', y=1.1)
@@ -342,16 +285,20 @@ transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", t
 squad_df = parse_html(squad_file) if squad_file else None
 transfer_df = parse_html(transfer_file) if transfer_file else None
 
-# --- Main Interface ---
+# --- Main Interface for Squad ---
 if squad_df is not None:
     st.subheader("Squad Overview")
-    st.dataframe(squad_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False))
+    st.dataframe(
+        squad_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]]
+        .sort_values(by="Current Ability", ascending=False)
+    )
 
     player_name = st.selectbox("Select Player for Detailed View", squad_df["Name"].tolist())
 
     if player_name:
         player_row = squad_df[squad_df["Name"] == player_name].iloc[0]
         st.markdown("### Player Details")
+
         # Present player details in a table
         player_info = {
             "Name": player_row["Name"],
@@ -360,8 +307,8 @@ if squad_df is not None:
             "Age": int(player_row["Age"]) if not pd.isna(player_row["Age"]) else "N/A",
             "Current Ability": int(player_row["Current Ability"]) if not pd.isna(player_row["Current Ability"]) else "N/A",
             "Potential Ability": int(player_row["Potential Ability"]) if not pd.isna(player_row["Potential Ability"]) else "N/A",
-            "Transfer Value": player_row["Transfer Value"],
-            "Wage": player_row["Wage"],
+            "Transfer Value": player_row.get("Transfer Value", "N/A"),
+            "Wage": player_row.get("Wage", "N/A"),
             "Goals": player_row.get("Goals", "N/A"),
             "Assists": player_row.get("Assists", "N/A"),
             "Expected Goals per 90 Minutes": player_row.get("Expected Goals per 90 Minutes", "N/A"),
@@ -379,17 +326,8 @@ if squad_df is not None:
             "Saves Parried": player_row.get("Saves Parried", "N/A"),
             "Saves Tipped": player_row.get("Saves Tipped", "N/A"),
         }
-        # Display as table
         info_df = pd.DataFrame.from_dict(player_info, orient="index", columns=["Value"])
         st.table(info_df)
-
-    def draw_pizza_chart(player_data):
-    # Your code for rendering radar chart or pizza chart using player_data
-        pass
-
-    def generate_scout_report(player_data):
-    # Your logic to return a string summary
-        return f"{player_data['Name']} is a promising {player_data['Position']} with high potential."
 
         # Radar Chart
         pos = player_row["Normalized Position"]
@@ -403,17 +341,17 @@ if squad_df is not None:
             st.markdown("### AI Scouting Report")
             st.write(report)
 
+# --- Main Interface for Transfer Market ---
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
 
     # Show full sorted transfer market
-    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(
-        by="Current Ability", ascending=False
-    )
+    filtered = transfer_df[
+        ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
+    ].sort_values(by="Current Ability", ascending=False)
 
     st.dataframe(filtered)
 
-    # === Player Detail Section ===
     if not filtered.empty:
         player_names = filtered["Name"].unique().tolist()
         selected_player = st.selectbox("Select a player to view details", player_names)
@@ -428,26 +366,15 @@ if transfer_df is not None:
             st.write(f"**Current Ability:** {player_row['Current Ability']}")
             st.write(f"**Potential Ability:** {player_row['Potential Ability']}")
 
-            # Optional: Uncomment if you want the radar/pizza chart
-            # plot_pizza_chart(player_row)
-# --- Player Detail Section ---
+            # Radar Chart for Transfer Market Player
+            pos = player_row["Normalized Position"]
+            metrics = position_metrics.get(pos, position_metrics["Unknown"])
+            st.markdown("#### Performance Overview (Radar Chart)")
+            plot_player_radar(player_row, metrics, title=f"{selected_player} - {pos} Radar")
 
-# Ensure 'filtered' is defined already from your Transfer Market section
-selected_player = st.selectbox("Select a player to view details", filtered["Name"])
-
-if selected_player:
-    player_data = transfer_df[transfer_df["Name"] == selected_player].iloc[0]
-
-    st.markdown(f"### {selected_player} - Player Details")
-
-    # Display Pizza Chart (assuming you have a function for this)
-    st.markdown("#### Performance Overview (Pizza Chart)")
-    draw_pizza_chart(player_data)  # Replace with your actual chart function
-
-    # AI Scout Report button
-    if st.button("Generate AI Scout Report"):
-        with st.spinner("Generating report..."):
-            report = generate_scout_report(player_data)  # Your custom function
-            st.markdown("#### AI Scout Report")
-            st.markdown(report)
-            
+            # AI Scout Report for Transfer Market Player
+            if st.button("Generate AI Scout Report for Transfer Player"):
+                with st.spinner("Generating report..."):
+                    report = get_ai_scouting_report(selected_player, player_row)
+                st.markdown("#### AI Scout Report")
+                st.markdown(report)
