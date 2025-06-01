@@ -345,13 +345,13 @@ if transfer_df is not None:
     cols[2].write(f"Potential: {row['Potential']}")
     st.write(f"Transfer Value: {row['Transfer Value']:,} | Wage: {row['Wage']:,}")
 
-        # Show bar chart for transfer player
-        pos_tr = row["Normalized Position"] if "Normalized Position" in row else "Unknown"
-        metrics_tr = position_metrics.get(pos_tr, position_metrics["Unknown"])
-        plot_player_barchart(row, metrics_tr, row['Name'])
+    # Show bar chart for transfer player
+    pos_tr = row["Normalized Position"] if "Normalized Position" in row else "Unknown"
+    metrics_tr = position_metrics.get(pos_tr, position_metrics["Unknown"])
+    plot_player_barchart(row, metrics_tr, row['Name'])
 
-        # Optional: AI report button (commented to avoid too many calls)
-        if st.button(f"Get AI Report for {row['Name']}", key=f"transfer_ai_report_{idx}_{row['Name']}"):
-            with st.spinner("Generating AI report..."):
-                report = get_ai_report(row['Name'], filtered_transfer)
-                st.markdown(f"**AI Report:**\n\n{report}")
+# Optional: AI report button (commented to avoid too many calls)
+if st.button(f"Get AI Report for {row['Name']}", key=f"transfer_ai_report_{idx}_{row['Name']}"):
+    with st.spinner("Generating AI report..."):
+        report = get_ai_report(row['Name'], filtered_transfer)
+        st.markdown(f"**AI Report:**\n\n{report}")
