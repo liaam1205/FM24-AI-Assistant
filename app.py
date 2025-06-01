@@ -446,9 +446,9 @@ else:
     # AI Scout Report
 if st.button("Generate AI Scout Report for Transfer Player"):
     with st.spinner("Generating report..."):
-    report = get_ai_scouting_report(selected_player, player_row)
-    st.markdown("#### AI Scout Report")
-    st.markdown(report)
+        report = get_ai_scouting_report(selected_player, player_row)
+        st.markdown("#### AI Scout Report")
+        st.markdown(report)
 
 else:
     st.warning("No transfer data available.")
