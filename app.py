@@ -357,7 +357,7 @@ if squad_df is not None:
         plot_player_barchart(player_row, metrics, selected_player)
 
         # AI scouting report button
-        if st.button("Get AI Scouting Report"):
+        if st.button("Get AI Scouting Report", key="squad_ai_report"):
             with st.spinner("Generating AI report..."):
                 report = get_ai_report(selected_player, filtered_squad)
                 st.markdown(f"**AI Report:**\n\n{report}")
@@ -404,7 +404,7 @@ if transfer_df is not None:
         plot_player_barchart(row, metrics_tr, row['Name'])
 
         # Optional: AI report button (commented to avoid too many calls)
-        # if st.button(f"Get AI Report for {row['Name']}", key=f"ai_report_{idx}"):
-        #     with st.spinner("Generating AI report..."):
-        #         report = get_ai_report(row['Name'], filtered_transfer)
-        #         st.markdown(f"**AI Report:**\n\n{report}")
+        if st.button(f"Get AI Report for {row['Name']}", key=f"transfer_ai_report_{idx}_{row['Name']}"):
+            with st.spinner("Generating AI report..."):
+                report = get_ai_report(row['Name'], filtered_transfer)
+                st.markdown(f"**AI Report:**\n\n{report}")
