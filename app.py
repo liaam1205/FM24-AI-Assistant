@@ -85,7 +85,6 @@ def deduplicate_headers(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
-# --- PARSE CURRENCY FUNCTION ---
 def parse_currency(value):
     if not isinstance(value, str):
         return None
@@ -102,7 +101,6 @@ def parse_currency(value):
     except:
         return None
 
-# --- PARSE HTML FUNCTION ---
 def parse_html(uploaded_file):
     if not uploaded_file:
         return None
@@ -114,12 +112,10 @@ def parse_html(uploaded_file):
             st.error("No table found in uploaded HTML.")
             return None
 
-        # Extract headers
         headers = [th.get_text(strip=True) for th in table.find_all("th")]
         headers = deduplicate_headers(headers)
         headers = [header_mapping.get(h, h) for h in headers]
 
-        # Extract rows
         data = []
         for row in table.find_all("tr")[1:]:
             cols = [td.get_text(strip=True).replace("–", "") for td in row.find_all("td")]
@@ -128,17 +124,18 @@ def parse_html(uploaded_file):
 
         df = pd.DataFrame(data, columns=headers)
 
-        # Clean and convert currency columns
         for col in ["Transfer Value", "Wage"]:
             if col in df.columns:
                 df[col] = df[col].apply(parse_currency)
 
-        # Convert numeric columns to numeric dtype where possible
         for col in df.columns:
-            if col not in ["Name", "Club", "Position"]:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+            if col not in ["Name", "Club", "Position"] and isinstance(df[col], pd.Series):
+                try:
+                    df[col] = df[col].apply(lambda x: str(x).replace(",", "").replace("%", "").strip())
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                except Exception as e:
+                    print(f"Could not convert column {col}: {e}")
 
-        # Normalize position column
         if "Position" in df.columns:
             df["Normalized Position"] = df["Position"].apply(normalize_position)
         else:
@@ -150,7 +147,6 @@ def parse_html(uploaded_file):
         st.error(f"Error parsing HTML: {e}")
         return None
 
-# --- BAR CHART FUNCTION ---
 def plot_player_barchart(player_row, metrics, player_name):
     labels = [m for m in metrics if pd.notnull(player_row.get(m)) and str(player_row.get(m)).strip() not in ["", "N/A"]]
     values = [float(player_row[m]) if pd.notnull(player_row[m]) else 0 for m in labels]
@@ -170,16 +166,14 @@ def plot_player_barchart(player_row, metrics, player_name):
     ax.grid(axis='x', linestyle='--', alpha=0.3)
     st.pyplot(fig)
 
-# --- AI SCOUTING REPORT ---
 def get_ai_scouting_report(player_name, player_row):
     if not api_key:
         return "API key not provided."
     
-    # Prepare only relevant stats for brevity
     pos = player_row.get("Normalized Position", "Unknown")
     relevant_metrics = position_metrics.get(pos, position_metrics["Unknown"])
     stats_dict = {k: player_row.get(k) for k in relevant_metrics if k in player_row.index}
-    
+
     prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {player_name} based on the following stats:
 
 {stats_dict}
