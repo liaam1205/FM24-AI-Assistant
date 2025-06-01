@@ -322,7 +322,7 @@ if df_squad is not None and not df_squad.empty:
 if df_transfer is not None:
     st.subheader("Transfer Market Players")
     transfer_player_names = df_transfer["Name"].drop_duplicates().tolist()
-   selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
+    selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
 
 if selected_transfer_player:
     filtered_rows = df_transfer[df_transfer["Name"] == selected_transfer_player]
