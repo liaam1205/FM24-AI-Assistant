@@ -398,15 +398,6 @@ if squad_df is not None:
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
 
-    # Default full view
-    filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(by="Current Ability", ascending=False)
-    st.dataframe(filtered)
-
-    transfer_search = st.text_input("Search Transfer Market Players by Name or Club")
-
-if transfer_df is not None:
-    st.subheader("Transfer Market Overview")
-
     # Show full sorted transfer market
     filtered = transfer_df[["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]].sort_values(
         by="Current Ability", ascending=False
