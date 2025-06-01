@@ -438,10 +438,10 @@ else:
     st.info("No numeric metric data available for this player.")
 
             # Bar Chart for Transfer Market Player
-            pos = player_row.get("Normalized Position", "Unknown")
-            metrics = position_metrics.get(pos, position_metrics["Unknown"])
-            st.markdown("#### Performance Overview (Pizza Chart)")
-            plot_player_barchart(player_row, metrics, selected_player)
+    pos = player_row.get("Normalized Position", "Unknown")
+    metrics = position_metrics.get(pos, position_metrics["Unknown"])
+    st.markdown("#### Performance Overview (Pizza Chart)")
+        plot_player_barchart(player_row, metrics, selected_player)
 
             # AI Scout Report
             if st.button("Generate AI Scout Report for Transfer Player"):
