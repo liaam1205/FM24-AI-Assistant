@@ -238,7 +238,7 @@ def clean_value(val):
 
 values = [clean_value(player_data[metric]) for metric in labels]
 
-    num_vars = len(labels)
+num_vars = len(labels)
 
     if num_vars == 0:
         st.warning("Not enough data to create radar chart.")
