@@ -121,7 +121,7 @@ header_mapping = {
     "Position": "Position",
     "Age": "Age",
     "Potential": "Potential",
-    "Ability": "Potential",
+    "Ability": "Current Ability",
     "CA": "Current Ability",
     "PA": "Potential Ability",
     "Transfer Value": "Transfer Value",
