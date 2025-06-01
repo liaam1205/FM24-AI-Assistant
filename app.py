@@ -393,6 +393,49 @@ if transfer_df is not None and not transfer_df.empty:
             st.markdown(f"**Transfer Value:** {transfer_value}")
             st.markdown(f"**Wage:** {wage}")
 
+            # Display all available numeric performance metrics for the player in a chart
+import matplotlib.pyplot as plt
+
+# Clean and extract numeric performance metrics
+def clean_and_extract_metrics(player_row):
+    metrics = {}
+    for k, v in player_row.items():
+        if isinstance(v, str) and "%" in v:
+            v = v.replace("%", "")
+        try:
+            v = float(v)
+            metrics[k] = v
+        except:
+            continue
+    return metrics
+
+all_metrics = clean_and_extract_metrics(player_row)
+
+# Only show chart if there's data
+if all_metrics:
+    st.markdown("### 📈 Full Performance Metrics")
+    
+    # Sort by value descending
+    sorted_metrics = dict(sorted(all_metrics.items(), key=lambda item: item[1], reverse=True))
+    labels = list(sorted_metrics.keys())
+    values = list(sorted_metrics.values())
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    bars = ax.barh(labels, values, color="#1f77b4")
+    ax.invert_yaxis()
+    ax.set_xlabel("Value")
+    ax.set_title(f"{selected_player} – Full Metrics", fontsize=10)
+    ax.grid(True, axis='x', linestyle='--', alpha=0.5)
+    
+    # Add value labels to the right of bars
+    for i, bar in enumerate(bars):
+        width = bar.get_width()
+        ax.text(width + 0.5, bar.get_y() + bar.get_height()/2, f"{width:.2f}", va='center', fontsize=7)
+
+    st.pyplot(fig)
+else:
+    st.info("No numeric metric data available for this player.")
+
             # Bar Chart for Transfer Market Player
             pos = player_row.get("Normalized Position", "Unknown")
             metrics = position_metrics.get(pos, position_metrics["Unknown"])
