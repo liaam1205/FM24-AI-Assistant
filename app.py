@@ -198,30 +198,29 @@ def parse_html(file) -> pd.DataFrame | None:
 
         df = pd.DataFrame(rows, columns=valid_headers)
 
-        # Clean numeric columns
-        for col in df.columns:
-            if col is None or col not in df:
-                continue  # skip unknown or invalid columns
-            if df[col].dtype == object:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(",", "", regex=False)
-                    .str.replace("%", "", regex=False)
-                )
-                df[col] = pd.to_numeric(df[col], errors="ignore")
+# Clean numeric columns
+for col in df.columns:
+    if col is None or col not in df:
+        continue  # skip unknown or invalid columns
+    if df[col].dtype == object:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+            .str.replace("%", "", regex=False)
+        )
+        try:
+            df[col] = pd.to_numeric(df[col], errors="coerce")  # safer, no warning
+        except Exception as e:
+            st.warning(f"Could not convert column {col} to numeric: {e}")
 
-        # Normalize positions
-        if "Position" in df.columns:
-            df["Normalized Position"] = df["Position"].apply(normalize_position)
-        else:
-            df["Normalized Position"] = "Unknown"
+# Normalize positions
+if "Position" in df.columns:
+    df["Normalized Position"] = df["Position"].apply(normalize_position)
+else:
+    df["Normalized Position"] = "Unknown"
 
-        return df
-
-    except Exception as e:
-        st.error(f"Error parsing HTML: {e}")
-        return None
+return df
 
 # --- Plot bar chart for player stats ---
 def plot_player_barchart(player_row, metrics, player_name):
