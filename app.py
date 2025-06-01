@@ -101,27 +101,35 @@ def deduplicate_column_names(headers):
 def parse_html(file):
     try:
         # Read HTML tables from the uploaded file
-        df_list = pd.read_html(file, encoding='utf-8')
+        df_list = pd.read_html(file, encoding="utf-8")
         df = df_list[0]
 
-        # Remove duplicate columns
-        df = df.loc[:, ~df.columns.duplicated()]
+        # Clean column names
+        df.columns = [str(col).strip() for col in df.columns]
 
-        # Strip whitespace from column headers
-        df.columns = [col.strip() for col in df.columns]
+        # Remove duplicate columns (but keep first occurrence)
+        df = df.loc[:, ~pd.Index(df.columns).duplicated(keep='first')]
 
-        # Columns to skip when converting to numeric (preserve formatting)
-        skip_numeric = ["Transfer Value", "Wage"]
+        # Columns that should retain original text formatting
+        keep_as_text = [
+            "Name", "Information", "Club", "Position", "Nationality", "Preferred Foot",
+            "Transfer Value", "Wage", "Contract Expiry", "Personality", "Media Handling",
+            "Height", "Weight", "Best Position", "Second Nationality"
+        ]
 
-        # Clean and convert numeric columns
+        # Try to preserve these columns if they exist
+        keep_as_text = [col for col in keep_as_text if col in df.columns]
+
+        # Apply cleaning to only numeric/statistical columns
         for col in df.columns:
-            if col not in skip_numeric:
+            if col not in keep_as_text:
                 df[col] = df[col].astype(str).apply(
                     lambda x: x.replace(",", "").replace("%", "").strip()
                 )
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
         return df
+
     except Exception as e:
         st.error(f"Error parsing file: {e}")
         return pd.DataFrame()
