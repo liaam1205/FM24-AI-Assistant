@@ -109,9 +109,17 @@ def parse_html(file) -> pd.DataFrame:
 
     # Leave Transfer Value and Wage as is, preserving formatting
     # Just ensure they are strings and stripped
-    for col in ["Transfer Value", "Wage"]:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
+import re
+
+def clean_str(s):
+    if pd.isna(s):
+        return s
+    # Replace all whitespace characters (including non-breaking) with normal space, then strip
+    return re.sub(r'\s+', ' ', str(s)).strip()
+
+for col in ["Transfer Value", "Wage"]:
+    if col in df.columns:
+        df[col] = df[col].apply(clean_str)
 
     # Normalize positions into broad categories
     if "Position" in df.columns:
