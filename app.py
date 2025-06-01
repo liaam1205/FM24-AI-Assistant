@@ -361,12 +361,12 @@ if squad_df is not None:
 if transfer_df is not None:
     st.subheader("Transfer Market Overview")
 
-    # Show full sorted transfer market
-    filtered = transfer_df[
-        ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
-    ].sort_values(by="Current Ability", ascending=False)
+# Show full sorted transfer market
+filtered = transfer_df[
+    ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
+].sort_values(by="Current Ability", ascending=False)
 
-    st.dataframe(filtered)
+st.dataframe(filtered)
 
 if not filtered.empty:
     player_names = filtered["Name"].unique().tolist()
