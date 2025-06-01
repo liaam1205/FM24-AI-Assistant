@@ -336,7 +336,11 @@ if df_transfer is not None and not df_transfer.empty:
     st.subheader("Transfer Market Players")
     st.dataframe(df_transfer.head(10))
 
-    transfer_player_names = df_transfer["Name"].dropna().drop_duplicates().tolist()
+    if "Name" in df_transfer.columns:
+        transfer_player_names = df_transfer["Name"].dropna().drop_duplicates().tolist()
+    else:
+        transfer_player_names = []
+
     if transfer_player_names:
         selected_transfer_player = st.selectbox("Select a player from Transfer Market:", transfer_player_names)
         if selected_transfer_player:
