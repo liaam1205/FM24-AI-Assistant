@@ -85,30 +85,33 @@ def deduplicate_column_names(headers):
 def parse_html(file) -> pd.DataFrame:
     import pandas as pd
 
-    # Read all tables from HTML, take the first one (assuming the main table)
+    # Read all tables from HTML, take the first one (main table)
     dfs = pd.read_html(file)
     df = dfs[0]
 
     # Remove duplicate columns (keep first occurrence)
     df = df.loc[:, ~df.columns.duplicated()]
 
-    # Define columns that should be treated as numeric if present
+    # Columns to convert to numeric (excluding Transfer Value and Wage)
     numeric_cols = [
         "Age", "Potential", "Current Ability", "Potential Ability",
-        "Transfer Value", "Wage", "Assists", "Goals", "Expected Goals per 90 Minutes",
+        "Assists", "Goals", "Expected Goals per 90 Minutes",
         "Expected Goals Overperformance", "Expected Assists", "Key Passes",
         "Dribbles Made", "Pass Completion Ratio", "Interceptions", "Headers Won",
         "Tackle Completion Ratio", "Save Ratio", "Clean Sheets", "Saves Held",
         "Saves Parried", "Saves Tipped"
     ]
 
-    # Clean and convert numeric columns
     for col in numeric_cols:
         if col in df.columns:
-            # Remove commas, percent signs and whitespace
             df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
-            # Convert to numeric, coercing errors to NaN
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Leave Transfer Value and Wage as is, preserving formatting
+    # Just ensure they are strings and stripped
+    for col in ["Transfer Value", "Wage"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
 
     # Normalize positions into broad categories
     if "Position" in df.columns:
@@ -135,7 +138,6 @@ def parse_html(file) -> pd.DataFrame:
 
         df["Normalized Position"] = df["Position"].apply(normalize_position)
 
-    # Return the fully parsed DataFrame with all columns intact
     return df
 
 # --- VISUALIZATION ---
