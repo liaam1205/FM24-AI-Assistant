@@ -166,32 +166,31 @@ def plot_player_barchart(player_row, metrics, player_name):
     st.pyplot(fig)
 
 # --- AI REPORT ---
-def get_ai_scouting_report(name, player_row):
+def get_ai_scouting_report(player_name, player_row):
     if not api_key:
-        return "No API key provided."
-    pos = player_row.get("Normalized Position", "Unknown")
-    metrics = position_metrics.get(pos, position_metrics["Unknown"])
-    stats = {k: player_row.get(k) for k in metrics if k in player_row.index}
+        return "API key not provided."
 
-    prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {name} based on the following stats:\n\n{stats}\n\nHighlight strengths, weaknesses, and role suitability."""
-    
-try:
-    from openai import OpenAI
+    prompt = f"""You are a professional football scout. Write a short, clear scouting report on the player {player_name} based on the following stats:
 
-    client = OpenAI(api_key=api_key)
+{player_row.to_dict()}
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are an expert football scout."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=300
-    )
-    return response.choices[0].message.content.strip()
+Highlight strengths, weaknesses, and role suitability."""
 
-except Exception as e:
-    return f"Error: {e}"
+    try:
+        client = OpenAI(api_key=api_key)
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert football scout."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"Error: {e}"
 
 # --- LOAD DATA ---
 df_squad = parse_html(squad_file) if squad_file else None
