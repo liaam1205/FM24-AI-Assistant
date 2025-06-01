@@ -24,15 +24,99 @@ st.sidebar.header("Upload Your FM24 Exported Files")
 squad_file = st.sidebar.file_uploader("Upload Squad HTML Export", type=["html", "htm"])
 transfer_file = st.sidebar.file_uploader("Upload Transfer Market HTML Export", type=["html", "htm"])
 
-# Parse files if uploaded
-squad_df = parse_html(squad_file) if squad_file else None
-transfer_df = parse_html(transfer_file) if transfer_file else None
+def parse_html(file) -> pd.DataFrame | None:
+    import streamlit as st
+    import pandas as pd
+    from bs4 import BeautifulSoup
 
-uploaded_file = st.file_uploader("Upload Squad HTML file", type=["html"])
-if uploaded_file:
-    df_squad = parse_html(uploaded_file)
-    if df_squad is not None:
-        st.write(df_squad)
+    try:
+        # Read file content (support bytes or string)
+        raw = file.read()
+        if isinstance(raw, bytes):
+            html = raw.decode("utf-8", errors="ignore")
+        else:
+            html = raw
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Find first <table>
+        table = soup.find("table")
+        if not table:
+            st.error("No table found in uploaded HTML file.")
+            return None
+
+        # Extract headers: Prefer thead > th, else first tr > th
+        thead = table.find("thead")
+        if thead:
+            header_cells = thead.find_all("th")
+        else:
+            first_tr = table.find("tr")
+            header_cells = first_tr.find_all("th") if first_tr else []
+
+        if not header_cells:
+            st.error("No table headers found in the uploaded file.")
+            return None
+
+        headers_raw = [th.get_text(strip=True) for th in header_cells]
+
+        # Map headers using your header_mapping dict; ignore unknown headers (None)
+        headers_mapped = [header_mapping.get(h, None) for h in headers_raw]
+
+        # Keep indices and names of valid headers only
+        valid_idx = [i for i, h in enumerate(headers_mapped) if h is not None]
+        valid_headers = [h for h in headers_mapped if h is not None]
+
+        if not valid_headers:
+            st.error("No recognizable columns found after header mapping.")
+            return None
+
+        # Extract rows
+        rows = []
+        trs = table.find_all("tr")
+
+        for tr in trs:
+            cells = tr.find_all("td")
+            if not cells or len(cells) < max(valid_idx) + 1:
+                # skip rows without enough columns
+                continue
+
+            # Extract only valid columns based on index
+            row = [cells[i].get_text(strip=True) if i < len(cells) else "" for i in valid_idx]
+
+            # Only add rows matching header length
+            if len(row) == len(valid_headers):
+                rows.append(row)
+
+        if not rows:
+            st.warning("No data rows found in the table.")
+            return None
+
+        # Create DataFrame
+        df = pd.DataFrame(rows, columns=valid_headers)
+
+        # Clean numeric columns: remove commas, %, convert to numeric safely
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace(",", "", regex=False)
+                    .str.replace("%", "", regex=False)
+                    .replace("", "0")  # Replace empty strings with zero for conversion
+                )
+            df[col] = pd.to_numeric(df[col], errors="ignore")
+
+        # Normalize position column if present
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        else:
+            df["Normalized Position"] = "Unknown"
+
+        return df
+
+    except Exception as e:
+        st.error(f"Failed to parse HTML file: {e}")
+        return None
 
 # --- Position Normalization ---
 position_aliases = {
