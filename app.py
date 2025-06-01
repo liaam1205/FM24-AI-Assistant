@@ -83,16 +83,12 @@ def deduplicate_column_names(headers):
     return deduped
 
 def parse_html(file) -> pd.DataFrame:
-    import pandas as pd
-
-    # Read all tables from HTML, take the first one (main table)
     dfs = pd.read_html(file)
     df = dfs[0]
 
-    # Remove duplicate columns (keep first occurrence)
+    # Remove duplicate columns if any
     df = df.loc[:, ~df.columns.duplicated()]
 
-    # Columns to convert to numeric (excluding Transfer Value and Wage)
     numeric_cols = [
         "Age", "Potential", "Current Ability", "Potential Ability",
         "Assists", "Goals", "Expected Goals per 90 Minutes",
@@ -107,21 +103,16 @@ def parse_html(file) -> pd.DataFrame:
             df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Leave Transfer Value and Wage as is, preserving formatting
-    # Just ensure they are strings and stripped
-    import re
-
     def clean_str(s):
         if pd.isna(s):
             return s
-    # Replace all whitespace characters (including non-breaking) with normal space, then strip
-    return re.sub(r'\s+', ' ', str(s)).strip()
+        # Replace all whitespace characters (including non-breaking) with a single space
+        return re.sub(r'\s+', ' ', str(s)).strip()
 
     for col in ["Transfer Value", "Wage"]:
         if col in df.columns:
             df[col] = df[col].apply(clean_str)
 
-    # Normalize positions into broad categories
     if "Position" in df.columns:
         def normalize_position(pos):
             pos = str(pos).upper()
