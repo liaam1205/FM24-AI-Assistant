@@ -361,19 +361,23 @@ if squad_df is not None:
             st.markdown("### AI Scouting Report")
             st.write(report)
 
+# --- Main Interface for Transfer Market ---
 if transfer_df is not None and not transfer_df.empty:
     st.subheader("Transfer Market Overview")
 
-    # Add a filter for Position
-    position_filter = st.selectbox(
-        "Filter players by Position",
-        options=transfer_df["Position"].dropna().unique()
-    )
+    # Show full sorted transfer market
+    filtered = transfer_df[
+        ["Name", "Club", "Position", "Age", "Current Ability", "Potential Ability"]
+    ].sort_values(by="Current Ability", ascending=False)
 
-    # Apply filtering
+    st.dataframe(filtered)
+
+    # Add a filter for Position
+    position_filter = st.selectbox("Filter players by Position", options=transfer_df["Position"].dropna().unique())
+
+    # Filter the DataFrame based on the selected position
     filtered = transfer_df[transfer_df["Position"] == position_filter]
 
-    # Proceed only if filtering returned results
     if not filtered.empty:
         player_names = filtered["Name"].unique().tolist()
         selected_player = st.selectbox("Select a player to view details", player_names)
@@ -395,7 +399,7 @@ if transfer_df is not None and not transfer_df.empty:
             st.markdown(f"**Transfer Value:** {transfer_value}")
             st.markdown(f"**Wage:** {wage}")
 
-            # Extract and show metrics chart
+            # ✅ Only now use player_row to extract metrics
             all_metrics = clean_and_extract_metrics(player_row)
             if all_metrics:
                 st.markdown("### Performance Overview (All Metrics Chart)")
