@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import numpy as np
 import openai
-import os
 
 # --- SETUP ---
 st.set_page_config(page_title="FM24 Squad & Transfer Analyzer", layout="wide")
@@ -85,6 +84,7 @@ def deduplicate_headers(headers):
             deduped.append(f"{h} ({seen[h]})")
     return deduped
 
+# --- PARSE CURRENCY FUNCTION ---
 def parse_currency(value):
     if not isinstance(value, str):
         return None
@@ -102,37 +102,54 @@ def parse_currency(value):
         return None
 
 # --- PARSE HTML FUNCTION ---
-def parse_html(file):
+def parse_html(uploaded_file):
+    if not uploaded_file:
+        return None
+
     try:
-        tables = pd.read_html(file, flavor="lxml")
+        soup = BeautifulSoup(uploaded_file, "html.parser")
+        table = soup.find("table")
+        if not table:
+            st.error("No table found in uploaded HTML.")
+            return None
+
+        # Extract headers
+        headers = [th.get_text(strip=True) for th in table.find_all("th")]
+        headers = deduplicate_headers(headers)
+        headers = [header_mapping.get(h, h) for h in headers]
+
+        # Extract rows
+        data = []
+        for row in table.find_all("tr")[1:]:
+            cols = [td.get_text(strip=True).replace("–", "") for td in row.find_all("td")]
+            if len(cols) == len(headers):
+                data.append(cols)
+
+        df = pd.DataFrame(data, columns=headers)
+
+        # Clean and convert currency columns
+        for col in ["Transfer Value", "Wage"]:
+            if col in df.columns:
+                df[col] = df[col].apply(parse_currency)
+
+        # Convert numeric columns to numeric dtype where possible
+        for col in df.columns:
+            if col not in ["Name", "Club", "Position"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Normalize position column
+        if "Position" in df.columns:
+            df["Normalized Position"] = df["Position"].apply(normalize_position)
+        else:
+            df["Normalized Position"] = "Unknown"
+
+        return df
+
     except Exception as e:
         st.error(f"Error parsing HTML: {e}")
-        return pd.DataFrame()
+        return None
 
-    # Find the table with the most relevant columns
-    df = max(tables, key=lambda t: len(set(t.columns) & set(METRIC_MAPPING.keys())))
-
-    # Ensure no duplicate columns
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    # Rename columns based on metric mapping
-    df = df.rename(columns=METRIC_MAPPING)
-
-    # Normalize position names
-    if "Position" in df.columns:
-        df["Normalized Position"] = df["Position"].apply(normalize_position)
-
-    # Clean and convert numeric data
-    for col in df.columns:
-        if col in ["Transfer Value", "Wage"]:
-            df[col] = df[col].apply(parse_currency)
-        elif col not in ["Name", "Club", "Position", "Normalized Position"]:
-            df[col] = df[col].astype(str).str.replace(",", "").str.replace("%", "").str.strip()
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df
-
-# --- BAR CHART ---
+# --- BAR CHART FUNCTION ---
 def plot_player_barchart(player_row, metrics, player_name):
     labels = [m for m in metrics if player_row.get(m) not in [None, "", "N/A", np.nan]]
     values = [float(player_row[m]) if pd.notnull(player_row[m]) else 0 for m in labels]
@@ -152,7 +169,7 @@ def plot_player_barchart(player_row, metrics, player_name):
     ax.grid(axis='x', linestyle='--', alpha=0.3)
     st.pyplot(fig)
 
-# --- AI REPORT ---
+# --- AI SCOUTING REPORT ---
 def get_ai_scouting_report(player_name, player_row):
     if not api_key:
         return "API key not provided."
@@ -174,10 +191,11 @@ Highlight strengths, weaknesses, and role suitability."""
     except Exception as e:
         return f"Error from OpenAI: {e}"
 
-# --- MAIN TABS ---
+# --- LOAD DATA ---
 df_squad = parse_html(squad_file) if squad_file else None
 df_transfer = parse_html(transfer_file) if transfer_file else None
 
+# --- TABS ---
 tab1, tab2 = st.tabs(["🏟️ Squad", "🌍 Transfer Market"])
 
 with tab1:
