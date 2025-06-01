@@ -337,12 +337,6 @@ if transfer_df is not None:
 
     # No filters here, just show total players
     st.write(f"Players available: {len(transfer_df)}")
-    
-    cols = st.columns(3)
-    cols[0].write(f"Age: {row['Age']}")
-    cols[1].write(f"Position: {row['Position']}")
-    cols[2].write(f"Potential: {row['Potential']}")
-    st.write(f"Transfer Value: {row['Transfer Value']:,} | Wage: {row['Wage']:,}")
 
     # Show bar chart for transfer player
     pos_tr = row["Normalized Position"] if "Normalized Position" in row else "Unknown"
