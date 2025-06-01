@@ -225,41 +225,49 @@ def parse_html(file) -> pd.DataFrame | None:
         st.error(f"Error parsing HTML: {e}")
         return None
 
-def plot_player_radar(player_data, metrics, title="Player Radar Chart"):
+def plot_player_pizza(player_data, metrics, title="Player Pizza Chart"):
     labels = metrics
     values = []
     for m in metrics:
-        val = player_data.get(m, 0)
-        try:
-            val_float = float(val)
-            if np.isnan(val_float):
-                val_float = 0.0
-        except (ValueError, TypeError):
-            val_float = 0.0
-        values.append(val_float)
+        val = player_data.get(m)
+        if val is None or (isinstance(val, float) and np.isnan(val)):
+            val = 0
+        values.append(float(val))
 
-    values += values[:1]
-    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles += angles[:1]
+    N = len(labels)
+    theta = np.linspace(0.0, 2 * np.pi, N, endpoint=False)
+    width = 2 * np.pi / N * 0.9  # slice width with some space between slices
 
-    fig, ax = plt.subplots(figsize=(4.5, 4.5), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
 
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
+    bars = ax.bar(theta, values, width=width, bottom=0.0, color='orange', alpha=0.75, edgecolor='darkorange')
 
-    plt.xticks(angles[:-1], labels, color='black', size=13, weight='bold')  # slightly bigger font
-    ax.set_yticklabels([])
-    ax.set_yticks([])
+    # Add labels at the middle of each slice
+    for i, (bar, label) in enumerate(zip(bars, labels)):
+        angle = theta[i]
+        rotation = np.degrees(angle)
+        alignment = "left"
+        if rotation > 90 and rotation < 270:
+            rotation += 180
+            alignment = "right"
+        ax.text(
+            angle, 
+            bar.get_height() + 5,  # slightly outside the bar
+            label, 
+            rotation=rotation,
+            rotation_mode='anchor',
+            horizontalalignment=alignment,
+            verticalalignment='center',
+            fontsize=9,
+            color='black'
+        )
 
-    ax.plot(angles, values, color='deepskyblue', linewidth=1.5, linestyle='solid')
-    ax.fill(angles, values, color='deepskyblue', alpha=0.25)
+    ax.set_ylim(0, 100)
+    ax.set_yticks([])  # hide radial ticks to keep it clean
+    ax.set_xticks([])  # hide theta ticks (labels are custom)
 
-    ax.grid(color='lightgrey', linestyle='-', linewidth=0.7)
-
-    plt.title(title, size=14, weight='bold', color='deepskyblue', y=1.05)
-
-    plt.tight_layout(pad=2)  # add padding so labels don’t get cut off
-
+    plt.title(title, size=14, color='darkorange', y=1.05)
+    plt.tight_layout()
     st.pyplot(fig)
 
 # --- AI Scouting Report ---
