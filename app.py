@@ -345,10 +345,10 @@ if squad_df is not None:
         info_df = pd.DataFrame.from_dict(player_info, orient="index", columns=["Value"])
         st.table(info_df)
 
-        # Radar Chart
+        # Pizza Chart
         pos = player_row["Normalized Position"]
         metrics = position_metrics.get(pos, position_metrics["Unknown"])
-        plot_player_radar(player_row, metrics, title=f"{player_name} - {pos} Radar")
+        plot_player_pizza(player_row, metrics, title=f"{selected_player} - {pos} Pizza Chart")
 
         # AI Scouting Report
         if st.button("Generate AI Scouting Report"):
