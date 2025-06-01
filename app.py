@@ -466,6 +466,14 @@ if transfer_df is not None and not transfer_df.empty:
                 st.pyplot(fig)
             else:
                 st.info("No performance metrics available for this player.")
+
+            # --- AI Scout Report Button & Report ---
+            if st.button("Generate AI Scout Report for Transfer Player"):
+                with st.spinner("Generating report..."):
+                    report = get_ai_scouting_report(selected_player, player_row)
+                    st.markdown("#### AI Scout Report")
+                    st.markdown(report)
+
         else:
             st.info("Please select a player to see details.")
     else:
